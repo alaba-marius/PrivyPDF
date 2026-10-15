@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+    <title>Editor — PrivyPDF</title>
+    <meta name="description" content="Reorder, rotate, merge and extract PDF pages entirely in your browser." />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="/assets/privypdf-icon.png" type="image/png" />
+    <link rel="preload" href="/vendor/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="modulepreload" href="/vendor/pdfjs/pdf.min.js" />
+    <link rel="stylesheet" href="/css/main.css" />
+    <script type="module" src="/js/app.js"></script>
+  </head>
+  <body class="editor-body" data-editor-mode="annotate">
+    <div class="app-bar">
+      <header data-navbar></header>
+      <div class="doc-title">
+        <i data-icon="file-text"></i>
+        <span id="doc-title">No document</span>
+      </div>
+      <div class="app-bar-end">
+        <span class="badge badge-success local-badge"><i data-icon="shield-check"></i> Local only</span>
+        <button class="btn btn-accent" id="btn-download" type="button" disabled>
+          <i data-icon="download"></i> Download
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar" role="toolbar" aria-label="Page tools">
+      <div class="tool-group">
+        <button class="btn btn-outline btn-sm" id="btn-add" type="button"><i data-icon="plus"></i> Add files</button>
+      </div>
+      <div class="tool-group">
+        <button class="icon-btn" id="btn-undo" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled><i data-icon="undo"></i></button>
+        <button class="icon-btn" id="btn-redo" type="button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled><i data-icon="redo"></i></button>
+      </div>
+      <div class="tool-group" data-needs-pages>
+        <button class="icon-btn" id="btn-rotate-left" type="button" aria-label="Rotate left" title="Rotate left (Shift+R)"><i data-icon="rotate-ccw"></i></button>
+        <button class="icon-btn" id="btn-rotate-right" type="button" aria-label="Rotate right" title="Rotate right (R)"><i data-icon="rotate-cw"></i></button>
+        <button class="icon-btn" id="btn-blank" type="button" aria-label="Insert blank page" title="Insert blank page"><i data-icon="square-plus"></i></button>
+        <button class="icon-btn" id="btn-duplicate" type="button" aria-label="Duplicate selected pages" title="Duplicate (Ctrl+D)"><i data-icon="copy"></i></button>
+        <button class="icon-btn is-danger" id="btn-delete" type="button" aria-label="Delete selected pages" title="Delete (Del)"><i data-icon="trash"></i></button>
+      </div>
+      <div class="tool-group" data-needs-pages>
+        <button class="btn btn-ghost btn-sm" id="btn-extract" type="button"><i data-icon="file-output"></i> Extract selected</button>
+      </div>
+      <div class="tool-group editor-modes">
+        <div class="mode-switch">
+          <input class="mode-switch-input" id="editor-mode-switch" type="checkbox" role="switch" aria-label="Editing mode" aria-checked="false" aria-controls="annotation-tools edit-tools" />
+          <label class="mode-switch-track" for="editor-mode-switch" data-off="Annotate" data-on="Edit"></label>
+        </div>
+      </div>
+      <div class="tool-group annotation-tools" id="annotation-tools" data-needs-pages role="group" aria-label="Annotation tools">
+        <button class="btn btn-outline btn-sm annotation-tool-btn is-active" type="button" data-annotation-tool="drag" aria-label="Drag" title="Drag to move around the page" aria-pressed="true"><i data-icon="hand"></i></button>
+        <div class="text-tool">
+          <button class="btn btn-outline btn-sm annotation-tool-btn" type="button" id="text-options-toggle" data-annotation-tool="text" aria-label="Add text" title="Add text options" aria-haspopup="true" aria-expanded="false"><i data-icon="type"></i><i class="text-options-chevron" data-icon="chevron-down"></i></button>
+          <div class="text-insert-options" id="text-insert-options" role="group" aria-label="Text options" hidden>
+            <label class="text-option-field text-option-font">
+              <span class="sr-only">Font</span>
+              <select class="input" id="insert-text-font" aria-label="Text font">
+                <option value="Helvetica">Helvetica</option>
+                <option value="TimesRoman">Times</option>
+                <option value="Courier">Courier</option>
+              </select>
+            </label>
+            <label class="text-option-field text-option-size">
+              <span class="sr-only">Font size</span>
+              <select class="input" id="insert-text-size" aria-label="Text size">
+                <option>8</option><option>9</option><option>10</option><option>11</option>
+                <option>12</option><option>14</option><option>16</option><option>18</option>
+                <option selected>24</option><option>36</option><option>48</option>
+              </select>
+            </label>
+            <span class="text-options-divider"></span>
+            <button class="icon-btn text-format-btn" type="button" data-insert-format="bold" aria-label="Bold" title="Bold" aria-pressed="false"><strong>B</strong></button>
+            <button class="icon-btn text-format-btn" type="button" data-insert-format="italic" aria-label="Italic" title="Italic" aria-pressed="false"><em>I</em></button>
+            <button class="icon-btn text-format-btn" type="button" data-insert-format="underline" aria-label="Underline" title="Underline" aria-pressed="false"><u>U</u></button>
+            <label class="text-option-color">
+              <span class="sr-only">Text color</span>
+              <input type="color" id="insert-text-color" value="#171717" aria-label="Text color" title="Text color" />
+            </label>
+            <label class="text-option-fill-toggle">
+              <input type="checkbox" id="insert-text-fill-enabled" aria-label="Use text background color" />
+              <span class="sr-only">Use text background color</span>
+              <i data-icon="highlighter"></i>
+            </label>
+            <label class="text-option-color">
+              <span class="sr-only">Text background color</span>
+              <input type="color" id="insert-text-fill" value="#fff2a8" aria-label="Text background color" title="Text background color" disabled />
+            </label>
+            <span class="text-options-divider"></span>
+            <label class="text-option-align">
+              <span class="sr-only">Text alignment</span>
+              <select class="input" id="insert-text-align" aria-label="Text alignment">
+                <option value="left">Align left</option>
+                <option value="center">Align center</option>
+                <option value="right">Align right</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm annotation-tool-btn" type="button" data-annotation-tool="image" aria-label="Add image" title="Add image"><i data-icon="image"></i></button>
+        <button class="btn btn-outline btn-sm annotation-tool-btn" type="button" data-annotation-tool="draw" aria-label="Draw" title="Draw"><i data-icon="pen"></i></button>
+        <div class="shape-tool">
+          <button class="btn btn-outline btn-sm annotation-tool-btn shape-menu-toggle" type="button" id="shape-menu-toggle" aria-label="Add shape" title="Add shape" aria-haspopup="true" aria-expanded="false"><i data-icon="shapes"></i></button>
+          <div class="shape-menu" id="shape-menu" role="menu" aria-label="Choose a shape" hidden>
+            <button class="shape-menu-item" type="button" data-shape="line" role="menuitem" aria-label="Line" title="Line"><i data-icon="minus"></i></button>
+            <button class="shape-menu-item" type="button" data-shape="rect" role="menuitem" aria-label="Rectangle" title="Rectangle"><i data-icon="square"></i></button>
+            <button class="shape-menu-item" type="button" data-shape="ellipse" role="menuitem" aria-label="Circle" title="Circle"><i data-icon="circle"></i></button>
+            <button class="shape-menu-item" type="button" data-shape="smiley" role="menuitem" aria-label="Smiley" title="Smiley"><i data-icon="smile"></i></button>
+          </div>
+        </div>
+        <div hidden>
+          <input id="annotation-color" type="color" value="#eab308" />
+          <input id="annotation-width" type="range" min="1" max="6" value="2" />
+        </div>
+      </div>
+      <div class="tool-group edit-tools" id="edit-tools" data-needs-pages role="group" aria-label="Edit tools">
+        <button class="btn btn-outline btn-sm annotation-tool-btn" type="button" data-edit-tool="drag" aria-label="Drag" title="Drag to move around the page"><i data-icon="hand"></i></button>
+        <div class="edit-tool-menu-wrap">
+          <button class="btn btn-outline btn-sm edit-tool-menu-toggle" type="button" data-edit-menu="annotate" aria-haspopup="true" aria-expanded="false"><i data-icon="highlighter"></i><span>Annotate</span></button>
+          <div class="edit-tool-menu" id="edit-menu-annotate" role="menu" aria-label="Annotate tools" hidden>
+            <button type="button" role="menuitem" data-edit-tool="highlight"><i data-icon="highlighter"></i><span>Highlight</span></button>
+            <button type="button" role="menuitem" data-edit-tool="annotate-underline"><i data-icon="underline"></i><span>Underline</span></button>
+            <button type="button" role="menuitem" data-edit-tool="annotate-squiggle"><i data-icon="squiggle"></i><span>Squiggly underline</span></button>
+            <button type="button" role="menuitem" data-edit-tool="annotate-strike"><i data-icon="strikethrough"></i><span>Strikethrough</span></button>
+            <button type="button" role="menuitem" data-edit-tool="draw"><i data-icon="pen"></i><span>Freehand drawing</span></button>
+            <button type="button" role="menuitem" data-edit-tool="text"><i data-icon="type"></i><span>Free Text</span></button>
+            <span class="edit-menu-divider" role="separator"></span>
+            <label class="edit-menu-color" role="none" title="Annotation color">
+              <i data-icon="palette"></i>
+              <input type="color" data-edit-annotation-color aria-label="Annotation color" value="#eab308" />
+            </label>
+            <span class="edit-menu-divider" role="separator"></span>
+            <button type="button" role="menuitem" data-edit-action="undo" aria-label="Undo" title="Undo"><i data-icon="undo"></i><span>Undo</span></button>
+            <button type="button" role="menuitem" data-edit-action="redo" aria-label="Redo" title="Redo"><i data-icon="redo"></i><span>Redo</span></button>
+            <button type="button" role="menuitem" data-edit-tool="eraser"><i data-icon="eraser"></i><span>Eraser</span></button>
+          </div>
+        </div>
+        <div class="edit-tool-menu-wrap">
+          <button class="btn btn-outline btn-sm edit-tool-menu-toggle" type="button" data-edit-menu="shapes" aria-haspopup="true" aria-expanded="false"><i data-icon="shapes"></i><span>Shapes</span></button>
+          <div class="edit-tool-menu" id="edit-menu-shapes" role="menu" aria-label="Shape tools" hidden>
+            <button type="button" role="menuitem" data-edit-tool="shape-rect"><i data-icon="square"></i><span>Rectangle</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-ellipse"><i data-icon="circle"></i><span>Circle</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-arc"><i data-icon="arc"></i><span>Arc</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-pentagon"><i data-icon="pentagon"></i><span>Pentagon</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-cloud"><i data-icon="cloud"></i><span>Cloud</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-line"><i data-icon="minus"></i><span>Line</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-polyline"><i data-icon="polyline"></i><span>Polyline</span></button>
+            <button type="button" role="menuitem" data-edit-tool="shape-arrow"><i data-icon="arrow-right"></i><span>Arrow</span></button>
+            <span class="edit-menu-divider" role="separator"></span>
+            <label class="edit-menu-color" role="none" title="Shape color">
+              <i data-icon="palette"></i>
+              <input type="color" data-edit-annotation-color aria-label="Shape color" value="#eab308" />
+            </label>
+            <span class="edit-menu-divider" role="separator"></span>
+            <button type="button" role="menuitem" data-edit-action="undo" aria-label="Undo" title="Undo"><i data-icon="undo"></i><span>Undo</span></button>
+            <button type="button" role="menuitem" data-edit-action="redo" aria-label="Redo" title="Redo"><i data-icon="redo"></i><span>Redo</span></button>
+            <button type="button" role="menuitem" data-edit-tool="eraser"><i data-icon="eraser"></i><span>Eraser</span></button>
+          </div>
+        </div>
+        <div class="edit-tool-menu-wrap">
+          <button class="btn btn-outline btn-sm edit-tool-menu-toggle" type="button" data-edit-menu="insert" aria-haspopup="true" aria-expanded="false"><i data-icon="file-plus"></i><span>Insert</span></button>
+          <div class="edit-tool-menu edit-tool-menu-wide" id="edit-menu-insert" role="menu" aria-label="Insert tools" hidden>
+            <button type="button" role="menuitem" data-edit-tool="stamp-gallery"><i data-icon="stamp"></i><span>Browse stamps</span></button>
+            <span class="edit-menu-divider"></span>
+            <button type="button" role="menuitem" data-edit-action="custom-stamp"><i data-icon="plus"></i><span>Create custom stamp</span></button>
+            <button type="button" role="menuitem" data-edit-action="signature-manager"><i data-icon="signature"></i><span>Signatures</span></button>
+            <button type="button" role="menuitem" data-edit-action="attachment"><i data-icon="paperclip"></i><span>Attach file</span></button>
+            <button type="button" role="menuitem" data-edit-action="image"><i data-icon="image"></i><span>Insert image</span></button>
+          </div>
+        </div>
+        <div class="edit-tool-menu-wrap">
+          <button class="btn btn-outline btn-sm edit-tool-menu-toggle" type="button" data-edit-menu="text" aria-haspopup="true" aria-expanded="false"><i data-icon="type"></i><span>Edit text</span></button>
+          <div class="edit-tool-menu" id="edit-menu-text" role="menu" aria-label="Edit text tools" hidden>
+            <button type="button" role="menuitem" data-edit-tool="select"><i data-icon="text-cursor"></i><span>Select and edit PDF text</span></button>
+            <button type="button" role="menuitem" data-edit-tool="text"><i data-icon="type"></i><span>Add text</span></button>
+            <button type="button" role="menuitem" data-edit-tool="paragraph"><i data-icon="paragraph"></i><span>Add paragraph</span></button>
+          </div>
+        </div>
+        <div class="edit-tool-menu-wrap">
+          <button class="btn btn-outline btn-sm edit-tool-menu-toggle" type="button" data-edit-menu="forms" aria-haspopup="true" aria-expanded="false"><i data-icon="form"></i><span>Forms</span></button>
+          <div class="edit-tool-menu" id="edit-menu-forms" role="menu" aria-label="Form field tools" hidden>
+            <button type="button" role="menuitem" data-edit-tool="form-signature" title="Drag to place a signature field"><i data-icon="signature"></i><span>Signature</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-text" title="Drag to place a text field"><i data-icon="text-field"></i><span>Text field</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-label" title="Click to place free text"><i data-icon="type"></i><span>Free Text</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-checkbox" title="Drag to place a checkbox"><i data-icon="checkbox"></i><span>Checkbox</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-radio" title="Drag to place a radio button"><i data-icon="radio"></i><span>Radio button</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-dropdown" title="Drag to place a dropdown field"><i data-icon="chevron-down"></i><span>Dropdown</span></button>
+            <button type="button" role="menuitem" data-edit-tool="form-list" title="Drag to place a list box"><i data-icon="list"></i><span>List box</span></button>
+            <span class="edit-menu-divider" role="separator"></span>
+            <label class="edit-menu-color" role="none" title="Form field color">
+              <i data-icon="palette"></i>
+              <input id="form-field-color" type="color" aria-label="Form field color" value="#2563eb" />
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="tool-group" data-needs-pages>
+        <span class="page-indicator mono" id="page-indicator" aria-live="polite">—</span>
+      </div>
+      <div class="tool-group" data-needs-pages>
+        <button class="icon-btn" id="btn-zoom-out" type="button" aria-label="Zoom out" title="Zoom out (-)"><i data-icon="minus"></i></button>
+        <span class="zoom-value mono" id="zoom-value">100%</span>
+        <button class="icon-btn" id="btn-zoom-in" type="button" aria-label="Zoom in" title="Zoom in (+)"><i data-icon="plus"></i></button>
+        <button class="icon-btn" id="btn-fit" type="button" aria-label="Fit to width" title="Fit to width"><i data-icon="fit"></i></button>
+      </div>
+    </div>
+
+    <main class="workspace" id="workspace">
+      <aside class="pane thumbs-pane" aria-label="Pages">
+        <div class="pane-head">
+          <span>Pages</span>
+          <span class="badge badge-muted" id="page-count">0</span>
+        </div>
+        <ol class="thumbs" id="thumbs" role="listbox" aria-multiselectable="true" aria-label="Pages, drag to reorder" tabindex="0"></ol>
+      </aside>
+
+      <section class="viewer" id="viewer" aria-label="Document preview">
+        <div class="empty" id="empty">
+          <div class="dropzone" id="empty-drop" role="button" tabindex="0" aria-label="Choose PDF or image files">
+            <div class="dropzone-icon"><i data-icon="file-plus"></i></div>
+            <div class="dropzone-title">Drop PDFs or images to begin</div>
+            <div class="dropzone-hint">or click to choose files · PDF, JPG and PNG</div>
+            <span class="badge badge-success"><i data-icon="shield-check"></i> Processed on this device only</span>
+          </div>
+        </div>
+        <div class="pages" id="pages"></div>
+      </section>
+
+      <aside class="pane panel" aria-label="Properties">
+        <section class="panel-section edit-panel-section" id="edit-panel">
+          <h2 class="panel-title">Edit PDF</h2>
+          <p class="panel-muted">Reorder items to move them in front of or behind other content.</p>
+          <div class="annotation-list-head">
+            <h3 id="annotation-page-label">Page 1</h3>
+            <button class="btn btn-ghost btn-sm is-danger-text" id="remove-all-annotations" type="button">Remove all</button>
+          </div>
+          <ol class="annotation-list" id="annotation-list" aria-label="Page annotations"></ol>
+          <section class="insert-tool-options" id="insert-tool-options" aria-label="Insert options" hidden>
+            <h3 id="insert-tool-title">Stamps</h3>
+            <div id="stamp-gallery-panel">
+              <button class="btn btn-outline stamp-create-btn" id="stamp-create" type="button">Create New Stamp</button>
+              <div class="stamp-gallery" id="stamp-gallery" aria-label="Available stamps"></div>
+            </div>
+            <div id="signature-library-panel" hidden>
+              <button class="btn btn-outline stamp-create-btn" id="signature-new" type="button">New Signature</button>
+              <div class="signature-list" id="signature-list" aria-label="Saved signatures"></div>
+            </div>
+          </section>
+          <section class="annotation-tool-options" id="annotation-tool-options" aria-label="Annotation tool options" hidden>
+            <h3 id="annotation-tool-title">Highlight Tool</h3>
+            <div class="annotation-option-group">
+              <span class="field-label">Color</span>
+              <div class="annotation-color-palette" id="annotation-color-palette" role="group" aria-label="Annotation colors">
+                <button class="annotation-color-swatch is-active" type="button" data-annotation-preset="#eab308" aria-label="Yellow" title="Yellow"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#f97316" aria-label="Orange" title="Orange"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#ef4444" aria-label="Red" title="Red"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#22c55e" aria-label="Green" title="Green"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#06b6d4" aria-label="Cyan" title="Cyan"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#3b82f6" aria-label="Blue" title="Blue"></button>
+                <button class="annotation-color-swatch" type="button" data-annotation-preset="#a855f7" aria-label="Violet" title="Violet"></button>
+              </div>
+              <div class="annotation-palette-actions">
+                <label class="annotation-custom-color" title="Custom annotation color">
+                  <span class="sr-only">Custom annotation color</span>
+                  <input id="annotation-tool-color" type="color" value="#eab308" aria-label="Custom annotation color" />
+                </label>
+                <button class="icon-btn" id="annotation-add-color" type="button" aria-label="Add custom color to palette" title="Add custom color"><i data-icon="plus"></i></button>
+                <button class="icon-btn" id="annotation-remove-color" type="button" aria-label="Remove last custom color" title="Remove last custom color" disabled><i data-icon="trash"></i></button>
+                <button class="btn btn-ghost btn-sm" id="annotation-palette-toggle" type="button" aria-expanded="false">Show More</button>
+              </div>
+            </div>
+            <label class="annotation-range-option" id="annotation-opacity-wrap">
+              <span class="field-label">Opacity <output id="annotation-opacity-value">35%</output></span>
+              <input id="annotation-opacity" type="range" min="0" max="100" value="35" />
+            </label>
+            <label class="annotation-range-option" id="annotation-width-wrap">
+              <span class="field-label">Stroke <output id="annotation-width-value">2 pt</output></span>
+              <input id="annotation-tool-width" type="range" min="1" max="20" value="2" />
+            </label>
+          </section>
+          <section class="annotation-tool-options shape-tool-options" id="shape-tool-options" aria-label="Shape properties" hidden>
+            <h3 id="shape-tool-title">Rectangle Tool</h3>
+            <div class="shape-property-group">
+              <span class="field-label">Stroke</span>
+              <div class="annotation-color-palette" id="shape-stroke-palette" role="group" aria-label="Stroke colors">
+                <button class="annotation-color-swatch is-active" type="button" data-shape-stroke-preset="#eab308" aria-label="Yellow stroke" title="Yellow"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#f97316" aria-label="Orange stroke" title="Orange"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#ef4444" aria-label="Red stroke" title="Red"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#22c55e" aria-label="Green stroke" title="Green"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#06b6d4" aria-label="Cyan stroke" title="Cyan"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#3b82f6" aria-label="Blue stroke" title="Blue"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-stroke-preset="#a855f7" aria-label="Violet stroke" title="Violet"></button>
+              </div>
+              <div class="annotation-palette-actions">
+                <label class="annotation-custom-color" title="Custom stroke color"><span class="sr-only">Custom stroke color</span><input id="shape-stroke-color" type="color" value="#eab308" aria-label="Custom stroke color" /></label>
+                <button class="icon-btn" id="shape-stroke-add-color" type="button" aria-label="Add stroke color" title="Add color"><i data-icon="plus"></i></button>
+                <button class="icon-btn" id="shape-stroke-remove-color" type="button" aria-label="Remove last stroke color" title="Remove color" disabled><i data-icon="trash"></i></button>
+                <button class="icon-btn" id="shape-stroke-copy-color" type="button" aria-label="Copy stroke color" title="Copy color"><i data-icon="copy"></i></button>
+                <button class="btn btn-ghost btn-sm" id="shape-stroke-palette-toggle" type="button" aria-expanded="false">Show More</button>
+              </div>
+              <label class="annotation-range-option">
+                <span class="field-label">Stroke width <output id="shape-stroke-width-value">1 pt</output></span>
+                <input id="shape-stroke-width" type="range" min="1" max="20" value="1" />
+              </label>
+              <label class="annotation-range-option">
+                <span class="field-label">Opacity <output id="shape-stroke-opacity-value">100%</output></span>
+                <input id="shape-stroke-opacity" type="range" min="0" max="100" value="100" />
+              </label>
+              <label class="field shape-style-select">
+                <span class="field-label">Line style</span>
+                <select class="input" id="shape-stroke-style">
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                  <option value="dash-dot">Dash-dot</option>
+                  <option value="long-dash">Long dash</option>
+                  <option value="wavy">Wavy</option>
+                </select>
+              </label>
+              <div class="shape-endpoints" id="shape-endpoints">
+                <label class="field"><span class="field-label">Start</span><select class="input" id="shape-start-marker"><option value="none">None</option><option value="triangle">Triangle</option><option value="open">Open arrow</option><option value="circle">Circle</option><option value="square">Square</option></select></label>
+                <label class="field"><span class="field-label">End</span><select class="input" id="shape-end-marker"><option value="none">None</option><option value="triangle">Triangle</option><option value="open">Open arrow</option><option value="circle">Circle</option><option value="square">Square</option></select></label>
+              </div>
+            </div>
+            <div class="shape-property-group" id="shape-fill-options">
+              <span class="field-label">Fill</span>
+              <div class="annotation-color-palette" id="shape-fill-palette" role="group" aria-label="Fill colors">
+                <button class="annotation-color-swatch is-active" type="button" data-shape-fill-clear aria-label="No fill" title="No fill"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#eab308" aria-label="Yellow fill" title="Yellow"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#f97316" aria-label="Orange fill" title="Orange"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#ef4444" aria-label="Red fill" title="Red"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#22c55e" aria-label="Green fill" title="Green"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#06b6d4" aria-label="Cyan fill" title="Cyan"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#3b82f6" aria-label="Blue fill" title="Blue"></button>
+                <button class="annotation-color-swatch" type="button" data-shape-fill-preset="#a855f7" aria-label="Violet fill" title="Violet"></button>
+              </div>
+              <div class="annotation-palette-actions">
+                <label class="annotation-custom-color" title="Custom fill color"><span class="sr-only">Custom fill color</span><input id="shape-fill-color" type="color" value="#fff2a8" aria-label="Custom fill color" /></label>
+                <button class="icon-btn" id="shape-fill-add-color" type="button" aria-label="Add fill color" title="Add color"><i data-icon="plus"></i></button>
+                <button class="icon-btn" id="shape-fill-remove-color" type="button" aria-label="Remove last fill color" title="Remove color" disabled><i data-icon="trash"></i></button>
+                <button class="icon-btn" id="shape-fill-copy-color" type="button" aria-label="Copy fill color" title="Copy color"><i data-icon="copy"></i></button>
+                <button class="btn btn-ghost btn-sm" id="shape-fill-palette-toggle" type="button" aria-expanded="false">Show More</button>
+              </div>
+              <label class="annotation-range-option">
+                <span class="field-label">Opacity <output id="shape-fill-opacity-value">100%</output></span>
+                <input id="shape-fill-opacity" type="range" min="0" max="100" value="100" />
+              </label>
+            </div>
+          </section>
+          <section class="form-tool-options" id="form-tool-options" aria-label="Form field options" hidden>
+            <h3 id="form-tool-title">Text Field Tool</h3>
+            <p class="panel-muted" id="form-tool-context">Defaults for the next field you place.</p>
+            <label class="field" id="form-default-value-wrap">
+              <span class="field-label">Default Value</span>
+              <textarea class="input" id="form-default-value" rows="2"></textarea>
+            </label>
+            <fieldset class="form-tool-properties" id="form-tool-properties">
+              <legend>Properties</legend>
+              <label data-form-setting="readOnly"><input type="checkbox" data-form-property="readOnly" /> Read Only</label>
+              <label data-form-setting="required"><input type="checkbox" data-form-property="required" /> Required</label>
+              <label data-form-setting="multiline"><input type="checkbox" data-form-property="multiline" /> Multiline</label>
+              <label data-form-setting="multiSelect"><input type="checkbox" data-form-property="multiSelect" /> Multi Select</label>
+              <label data-form-setting="indicator"><input type="checkbox" data-form-property="indicator" /> Include Field Indicator</label>
+            </fieldset>
+            <div class="form-field-dimensions" id="form-field-dimensions">
+              <label class="field">
+                <span class="field-label">Width</span>
+                <input class="input" id="form-field-width" type="number" min="10" max="1000" step="1" />
+              </label>
+              <label class="field">
+                <span class="field-label">Height</span>
+                <input class="input" id="form-field-height" type="number" min="10" max="1000" step="1" />
+              </label>
+            </div>
+            <div id="form-options-editor" hidden>
+              <div class="form-options-heading">
+                <span class="field-label">Options</span>
+                <button class="btn btn-outline btn-sm" id="form-add-option" type="button"><i data-icon="plus"></i> Add option</button>
+              </div>
+              <ol id="form-option-list" class="form-option-list" aria-label="Choice field options"></ol>
+            </div>
+            <div class="form-tool-actions">
+              <button class="btn btn-ghost btn-sm" id="form-tool-close" type="button">Close</button>
+              <button class="btn btn-accent btn-sm" id="form-tool-save" type="button"><i data-icon="check"></i> Save changes</button>
+            </div>
+          </section>
+          <section class="text-style-editor" aria-label="Text styles">
+            <h3>Text styles</h3>
+            <div class="text-style-row">
+              <label class="sr-only" for="text-font">Font</label>
+              <select class="input" id="text-font">
+                <option value="Helvetica">Helvetica</option>
+                <option value="TimesRoman">Times</option>
+                <option value="Courier">Courier</option>
+              </select>
+              <label class="sr-only" for="text-size">Font size</label>
+              <select class="input" id="text-size">
+                <option>8</option><option>9</option><option>10</option><option>11</option>
+                <option selected>12</option><option>14</option><option>16</option>
+                <option>18</option><option>24</option><option>36</option><option>48</option>
+              </select>
+            </div>
+            <div class="text-style-buttons" role="group" aria-label="Text formatting">
+              <button class="icon-btn text-format-btn" type="button" data-text-format="bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button>
+              <button class="icon-btn text-format-btn" type="button" data-text-format="italic" aria-label="Italic" aria-pressed="false"><em>I</em></button>
+              <button class="icon-btn text-format-btn" type="button" data-text-format="underline" aria-label="Underline" aria-pressed="false"><u>U</u></button>
+              <button class="icon-btn text-format-btn" type="button" data-text-format="strike" aria-label="Strikethrough" aria-pressed="false"><s>A</s></button>
+              <span class="text-style-divider"></span>
+              <button class="icon-btn text-format-btn" type="button" data-text-align="left" aria-label="Align left" aria-pressed="true">≡</button>
+              <button class="icon-btn text-format-btn" type="button" data-text-align="center" aria-label="Align center" aria-pressed="false">≡</button>
+              <button class="icon-btn text-format-btn" type="button" data-text-align="right" aria-label="Align right" aria-pressed="false">≡</button>
+              <button class="icon-btn text-format-btn" type="button" id="text-link" aria-label="Add link" title="Add link"><i data-icon="link"></i></button>
+            </div>
+            <div class="text-style-buttons" role="group" aria-label="Vertical text alignment">
+              <button class="icon-btn text-format-btn" type="button" data-text-valign="top" aria-label="Align top" aria-pressed="false"><i data-icon="align-vertical-justify-start"></i></button>
+              <button class="icon-btn text-format-btn is-active" type="button" data-text-valign="middle" aria-label="Align middle" aria-pressed="true"><i data-icon="align-vertical-justify-center"></i></button>
+              <button class="icon-btn text-format-btn" type="button" data-text-valign="bottom" aria-label="Align bottom" aria-pressed="false"><i data-icon="align-vertical-justify-end"></i></button>
+            </div>
+            <label class="text-style-toggle"><input id="text-auto-fit" type="checkbox" /> Scale font size dynamically</label>
+            <div class="text-style-row color-row">
+              <label for="text-color">Text color</label>
+              <input id="text-color" type="color" value="#171717" aria-label="Text color" />
+            </div>
+            <div class="text-style-row">
+              <label for="custom-text-color">Custom colors</label>
+              <input id="custom-text-color" type="color" value="#f2552c" aria-label="Choose custom color" />
+            </div>
+            <div class="text-link-editor" id="text-link-editor" hidden>
+              <label class="sr-only" for="text-url">Link URL</label>
+              <input class="input" id="text-url" type="url" placeholder="https://example.com" autocomplete="url" />
+              <button class="btn btn-outline btn-sm" id="apply-text-link" type="button">Apply</button>
+              <button class="btn btn-ghost btn-sm" id="clear-text-link" type="button">Remove</button>
+            </div>
+          </section>
+          <div class="annotation-history">
+            <button class="icon-btn" type="button" id="annotation-undo" aria-label="Undo" title="Undo"><i data-icon="undo"></i></button>
+            <button class="icon-btn" type="button" id="annotation-redo" aria-label="Redo" title="Redo"><i data-icon="redo"></i></button>
+          </div>
+          <button class="btn btn-accent save-changes-btn" type="button" id="save-changes"><i data-icon="check"></i> Save changes</button>
+        </section>
+        <section class="panel-section">
+          <h2 class="panel-title">Document</h2>
+          <label class="field">
+            <span class="field-label">File name</span>
+            <span class="input-wrap">
+              <input class="input" id="file-name" type="text" value="document" spellcheck="false" autocomplete="off" />
+              <span class="input-suffix">.pdf</span>
+            </span>
+          </label>
+          <dl class="kv">
+            <div><dt>Pages</dt><dd id="info-pages">0</dd></div>
+            <div><dt>Source files</dt><dd id="info-sources">0</dd></div>
+            <div><dt>Original size</dt><dd id="info-size">0 B</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel-section">
+          <h2 class="panel-title">Selection</h2>
+          <p class="panel-muted" id="sel-summary">No pages selected</p>
+          <div class="panel-actions">
+            <button class="btn btn-outline btn-sm" data-action="rotate-right" type="button"><i data-icon="rotate-cw"></i> Rotate</button>
+            <button class="btn btn-outline btn-sm" data-action="duplicate" type="button"><i data-icon="copy"></i> Duplicate</button>
+            <button class="btn btn-outline btn-sm" data-action="extract" type="button"><i data-icon="file-output"></i> Extract</button>
+            <button class="btn btn-outline btn-sm is-danger-text" data-action="delete" type="button"><i data-icon="trash"></i> Delete</button>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2 class="panel-title">Text &amp; annotations</h2>
+          <p class="panel-muted" id="annotation-hint" aria-live="polite">Dashed outlines show detected PDF text. Click text to edit it or drag it to move it; click an added text box to edit it again or drag its border to move it.</p>
+          <div class="text-inspector" id="text-inspector" hidden>
+            <label class="field">
+              <span class="field-label">Selected or overlay text</span>
+              <textarea class="input" id="selected-text" rows="3" spellcheck="true"></textarea>
+            </label>
+            <p class="panel-muted" id="selected-text-help">Selected PDF text opens for in-place editing automatically. In PDFs with a detectable table grid, click an empty cell to add text there. Existing text edits keep the original line width; longer text may be compressed.</p>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm" id="apply-text" type="button" disabled>Start in-place editing</button>
+              <button class="btn btn-ghost btn-sm" id="clear-text-selection" type="button">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section privacy-card">
+          <h2 class="panel-title"><i data-icon="shield-check"></i> Privacy</h2>
+          <div class="privacy-stat">
+            <span class="privacy-num mono" id="net-count">0</span>
+            <span class="panel-muted">requests to other servers since you opened a file</span>
+          </div>
+          <ul class="checks">
+            <li><i data-icon="check"></i> Files held in memory only</li>
+            <li><i data-icon="check"></i> Rendering by local pdf.js</li>
+            <li><i data-icon="check"></i> Export built by local pdf-lib</li>
+          </ul>
+          <a class="panel-link" href="/privacy.html#verify" target="_blank" rel="noopener">How to verify <i data-icon="arrow-right"></i></a>
+        </section>
+
+        <section class="panel-section">
+          <h2 class="panel-title">Shortcuts</h2>
+          <dl class="shortcuts">
+            <div><dt>Select range</dt><dd><kbd>Shift</kbd> click</dd></div>
+            <div><dt>Toggle page</dt><dd><kbd>Ctrl</kbd> click</dd></div>
+            <div><dt>Move pages</dt><dd><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dd></div>
+            <div><dt>Rotate</dt><dd><kbd>R</kbd></dd></div>
+            <div><dt>Delete</dt><dd><kbd>Del</kbd></dd></div>
+            <div><dt>Undo / Redo</dt><dd><kbd>Ctrl</kbd> <kbd>Z</kbd> / <kbd>⇧Z</kbd></dd></div>
+            <div><dt>Download</dt><dd><kbd>Ctrl</kbd> <kbd>S</kbd></dd></div>
+          </dl>
+        </section>
+      </aside>
+      <input class="sr-only" id="insert-image-file" type="file" accept="image/png,image/jpeg" />
+      <input class="sr-only" id="insert-attachment-file" type="file" />
+      <input class="sr-only" id="signature-upload-file" type="file" accept="image/png,image/jpeg" />
+
+      <dialog class="signature-dialog stamp-dialog" id="stamp-dialog" aria-labelledby="stamp-dialog-title">
+        <form class="signature-dialog-form" method="dialog">
+          <header class="signature-dialog-header">
+            <h2 id="stamp-dialog-title">Create New Stamp</h2>
+            <button class="icon-btn" id="stamp-dialog-close" type="button" aria-label="Close stamp dialog"><i data-icon="x"></i></button>
+          </header>
+          <label class="field">
+            <span class="field-label">Stamp text</span>
+            <input class="input" id="stamp-name" type="text" maxlength="48" autocomplete="off" />
+          </label>
+          <div class="stamp-dialog-colors">
+            <label class="field"><span class="field-label">Text and outline</span><input id="stamp-color" type="color" value="#b42318" aria-label="Stamp color" /></label>
+            <label class="field"><span class="field-label">Fill</span><span class="stamp-fill-control"><input id="stamp-fill-enabled" type="checkbox" checked /><input id="stamp-fill-color" type="color" value="#fde8e7" aria-label="Stamp fill color" /></span></label>
+          </div>
+          <div class="stamp-dialog-preview"><span id="stamp-preview">NEW STAMP</span></div>
+          <footer class="signature-dialog-footer">
+            <button class="btn btn-ghost" id="stamp-cancel" type="button">Cancel</button>
+            <button class="btn btn-accent" id="stamp-save" type="button" disabled>Create</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="signature-dialog" id="signature-dialog" aria-labelledby="signature-dialog-title">
+        <form class="signature-dialog-form" method="dialog">
+          <header class="signature-dialog-header">
+            <h2 id="signature-dialog-title">Create New Signature</h2>
+            <button class="icon-btn" id="signature-dialog-close" type="button" aria-label="Close signature dialog"><i data-icon="x"></i></button>
+          </header>
+          <div class="signature-mode-switch" role="group" aria-label="Signature method">
+            <button class="is-active" type="button" data-signature-mode="draw" aria-pressed="true">Draw</button>
+            <button type="button" data-signature-mode="type" aria-pressed="false">Type</button>
+            <button type="button" data-signature-mode="upload" aria-pressed="false">Upload</button>
+          </div>
+          <section class="signature-mode-panel" id="signature-draw-panel" aria-label="Draw signature">
+            <canvas id="signature-canvas" width="720" height="240" aria-label="Draw your signature"></canvas>
+            <div class="signature-canvas-footer">
+              <span>Draw Signature*</span>
+              <button class="btn btn-ghost btn-sm" id="signature-clear" type="button">Clear</button>
+            </div>
+          </section>
+          <section class="signature-mode-panel" id="signature-type-panel" aria-label="Type signature" hidden>
+            <input class="input signature-type-input" id="signature-type-input" type="text" maxlength="80" placeholder="Type your name" />
+            <div class="signature-type-preview" id="signature-type-preview" aria-live="polite"></div>
+          </section>
+          <section class="signature-mode-panel signature-upload-panel" id="signature-upload-panel" aria-label="Upload signature" hidden>
+            <p>Drag &amp; drop your image here</p>
+            <span>Or</span>
+            <button class="btn btn-outline" id="signature-upload-choose" type="button">Choose a signature</button>
+            <img id="signature-upload-preview" alt="Signature preview" hidden />
+          </section>
+          <div class="signature-style-row" id="signature-style-row">
+            <label class="field" id="signature-font-wrap">
+              <span class="sr-only">Text style</span>
+              <select class="input" id="signature-font">
+                <option value="cursive">Cursive</option>
+                <option value="serif">Serif</option>
+                <option value="sans-serif">Sans serif</option>
+              </select>
+            </label>
+            <span class="text-style-divider"></span>
+            <div class="signature-color-options" role="group" aria-label="Signature color">
+              <button type="button" class="signature-color-swatch is-active" data-signature-color="#171717" aria-label="Black" title="Black"></button>
+              <button type="button" class="signature-color-swatch" data-signature-color="#3b82f6" aria-label="Blue" title="Blue"></button>
+              <button type="button" class="signature-color-swatch" data-signature-color="#ef4444" aria-label="Red" title="Red"></button>
+            </div>
+          </div>
+          <footer class="signature-dialog-footer">
+            <button class="btn btn-accent" id="signature-create" type="button" disabled>Create</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <div class="drop-overlay" aria-hidden="true">
+        <div class="drop-overlay-card"><i data-icon="file-plus"></i> Drop to add files, processed locally</div>
+      </div>
+    </main>
+  </body>
+</html>

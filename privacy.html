@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+    <title>Privacy model — PrivyPDF</title>
+    <meta name="description" content="How PrivyPDF processes every PDF on your device, and how you can verify it yourself." />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="/assets/privypdf-icon.png" type="image/png" />
+    <link rel="preload" href="/vendor/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/css/main.css" />
+    <script type="module" src="/js/privacy.js"></script>
+  </head>
+  <body>
+    <header data-navbar></header>
+
+    <main>
+      <section class="page-hero">
+        <div class="grid-bg" aria-hidden="true"></div>
+        <div class="glow" aria-hidden="true" style="top: 60px; height: 320px"></div>
+        <div class="container hero-inner">
+          <span class="badge badge-accent"><i data-icon="shield-check"></i> Privacy model</span>
+          <h1 class="hero-title" style="font-size: clamp(2.4rem, 5vw, 3.8rem)">Private by architecture, not by promise</h1>
+          <p class="hero-sub">
+            PrivyPDF can&apos;t see your documents because it has nowhere to send them. Here&apos;s exactly how that works.
+          </p>
+        </div>
+      </section>
+
+      <article class="container prose">
+        <div class="promise-grid">
+          <div class="promise">
+            <div class="flow-icon"><i data-icon="cloud-off"></i></div>
+            <h3>No uploads</h3>
+            <p>There is no server endpoint that accepts files.</p>
+          </div>
+          <div class="promise">
+            <div class="flow-icon"><i data-icon="lock"></i></div>
+            <h3>Network locked down</h3>
+            <p>CSP blocks connections to every other origin.</p>
+          </div>
+          <div class="promise">
+            <div class="flow-icon"><i data-icon="eye"></i></div>
+            <h3>No tracking</h3>
+            <p>No analytics, cookies, fingerprinting or third-party scripts.</p>
+          </div>
+          <div class="promise">
+            <div class="flow-icon"><i data-icon="cpu"></i></div>
+            <h3>Self-hosted engines</h3>
+            <p>pdf.js, pdf-lib and fonts are served from this site.</p>
+          </div>
+        </div>
+
+        <h2 id="lifecycle">The life of a file</h2>
+        <ol>
+          <li>You choose a file or drop it on the page. Your browser reads it into the tab&apos;s memory as raw bytes.</li>
+          <li><code>pdf.js</code> renders pages to canvases in a background Web Worker, all on your machine.</li>
+          <li>When you edit, PrivyPDF only changes a lightweight list of pages. The original bytes stay untouched.</li>
+          <li>On download, <code>pdf-lib</code> assembles a new PDF in memory and your browser saves it to disk.</li>
+          <li>Close or reload the tab and everything is discarded.</li>
+        </ol>
+        <p>
+          When you drop a file on the home page, it&apos;s handed to the editor through your browser&apos;s local IndexedDB storage
+          and deleted the moment the editor opens it. It never leaves your device.
+        </p>
+
+        <h2 id="csp">The Content Security Policy</h2>
+        <p>
+          Every page enforces this policy in the browser. <code>connect-src 'self'</code> means the browser itself will refuse any
+          request to another server, even if a bug or a malicious dependency tried to make one.
+        </p>
+        <div class="code-block" id="csp-value">default-src 'self';
+script-src 'self' 'wasm-unsafe-eval';
+style-src 'self' 'unsafe-inline';
+img-src 'self' blob: data:;
+font-src 'self';
+connect-src 'self';
+worker-src 'self' blob:;
+object-src 'none';
+form-action 'none';</div>
+
+        <h2 id="verify">Verify it yourself</h2>
+        <ol>
+          <li>Open the <a href="/editor.html">editor</a>, then open DevTools (<code>F12</code> or <code>Cmd+Option+I</code>).</li>
+          <li>Go to the <strong>Network</strong> tab and click the clear button.</li>
+          <li>Open a PDF, reorder some pages, and download the result.</li>
+          <li>
+            You&apos;ll only see requests to this site for the app&apos;s own assets, such as a font file pdf.js needs. Nothing
+            contains your document and nothing goes to another server.
+          </li>
+          <li>For extra proof, turn off Wi-Fi after the editor loads. Everything keeps working.</li>
+        </ol>
+        <p>The editor also shows a live counter of requests to other origins. It should always read zero.</p>
+
+        <h2 id="limits">Honest limitations</h2>
+        <ul>
+          <li>Password-protected PDFs aren&apos;t supported yet. Unlocking will arrive in a later release, also on-device.</li>
+          <li>Very large files are limited by your device&apos;s memory, not by us.</li>
+          <li>Browser extensions you install can read page content. That&apos;s outside any website&apos;s control.</li>
+        </ul>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <a class="footer-brand" href="/" data-logo aria-label="PrivyPDF home"></a>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="/editor.html">Editor</a>
+          <a href="/#tools">Tools</a>
+          <a href="/privacy.html">Privacy</a>
+          <a href="/#faq">FAQ</a>
+        </nav>
+        <span>Processed on your device. Always.</span>
+      </div>
+    </footer>
+  </body>
+</html>

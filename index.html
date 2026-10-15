@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+    <title>PrivyPDF — The PDF editor that never uploads your files</title>
+    <meta
+      name="description"
+      content="Edit, merge, reorder and convert PDFs entirely in your browser. No uploads, no accounts, no trackers. Your documents never leave your device."
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="/assets/privypdf-icon.png" type="image/png" />
+    <link rel="preload" href="/vendor/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/css/main.css" />
+    <script type="module" src="/js/landing.js"></script>
+  </head>
+  <body>
+    <header data-navbar></header>
+
+    <main>
+      <section class="hero">
+        <div class="grid-bg" aria-hidden="true"></div>
+        <div class="glow" aria-hidden="true"></div>
+        <div class="container hero-inner">
+          <a class="badge badge-accent" href="/privacy.html">
+            <span class="dot"></span> 100% on-device · Zero uploads
+          </a>
+          <h1 class="hero-title">Edit PDFs. <span class="muted">Nothing leaves your device.</span></h1>
+          <p class="hero-sub">
+            PrivyPDF is a complete PDF toolkit that runs entirely in your browser. No servers, no accounts, no trackers, just
+            you and your files.
+          </p>
+          <div class="hero-ctas">
+            <a class="btn btn-primary btn-lg" href="/editor.html">Open the editor <i data-icon="arrow-right"></i></a>
+            <a class="btn btn-outline btn-lg" href="#how">How it works</a>
+          </div>
+
+          <div class="hero-app">
+            <div class="frame">
+              <div class="frame-bar">
+                <div class="frame-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="frame-url"><i data-icon="lock"></i> PrivyPDF · runs locally</div>
+              </div>
+              <div class="frame-body">
+                <div class="dropzone" id="hero-drop" role="button" tabindex="0" aria-label="Choose PDF or image files to open in the editor">
+                  <div class="dropzone-icon"><i data-icon="file-plus"></i></div>
+                  <div class="dropzone-title">Drop a PDF here to start editing</div>
+                  <div class="dropzone-hint">or click to choose files · PDF, JPG and PNG</div>
+                  <span class="badge badge-success"><i data-icon="shield-check"></i> Read by your browser, never uploaded</span>
+                </div>
+                <div class="frame-side" aria-hidden="true">
+                  <div class="stat-card">
+                    <div class="stat-label"><i data-icon="cloud-off"></i> Bytes uploaded</div>
+                    <div class="stat-value">0 <small>B</small></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i data-icon="eye"></i> Trackers</div>
+                    <div class="stat-value">0</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i data-icon="wifi-off"></i> Needs internet</div>
+                    <div class="stat-value">No <small>once loaded</small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="strip" aria-label="Privacy guarantees">
+        <div class="container strip-inner">
+          <div class="strip-item"><i data-icon="cloud-off"></i> No file uploads, ever</div>
+          <div class="strip-item"><i data-icon="lock"></i> Strict Content Security Policy</div>
+          <div class="strip-item"><i data-icon="eye"></i> No analytics or cookies</div>
+          <div class="strip-item"><i data-icon="cpu"></i> Self-hosted, open-source engines</div>
+        </div>
+      </section>
+
+      <section class="section" id="how">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="badge">How it works</span>
+            <h2 class="section-title">Your browser is the whole backend</h2>
+            <p class="section-sub">
+              Files are read straight into memory, processed by engines that ship with the page, and handed back to you as a
+              download.
+            </p>
+          </div>
+
+          <div class="flow reveal">
+            <div class="flow-node">
+              <div class="flow-icon"><i data-icon="file-text"></i></div>
+              <h3>Your file</h3>
+              <p>Picked or dropped in. Read as raw bytes into this tab&apos;s memory.</p>
+            </div>
+            <div class="flow-arrow" aria-hidden="true"></div>
+            <div class="flow-node is-center">
+              <div class="flow-icon"><i data-icon="monitor"></i></div>
+              <h3>Your browser</h3>
+              <p>Rendering, editing and rebuilding all happen locally, on your CPU.</p>
+              <div class="chips">
+                <span class="badge">pdf.js</span>
+                <span class="badge">pdf-lib</span>
+                <span class="badge">Web Workers</span>
+              </div>
+            </div>
+            <div class="flow-arrow" aria-hidden="true"></div>
+            <div class="flow-node">
+              <div class="flow-icon"><i data-icon="download"></i></div>
+              <h3>Your download</h3>
+              <p>A brand-new PDF is generated in memory and saved to your disk.</p>
+            </div>
+          </div>
+          <div class="flow-blocked reveal">
+            <span class="blocked-pill"><i data-icon="cloud-off"></i> Our servers: never contacted with your data</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="tools" style="padding-top: 0">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="badge">Toolkit</span>
+            <h2 class="section-title">Everything you do with PDFs. Privately.</h2>
+            <p class="section-sub">Page tools are live today. Annotation, signing and conversion are on the way.</p>
+          </div>
+
+          <div class="bento">
+            <a class="bento-card span-2 reveal" href="/editor.html">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual" aria-hidden="true">
+                <div class="mini-pages">
+                  <div class="mini-page"><i></i><i></i><i></i><i></i><span class="num">1</span></div>
+                  <div class="mini-page is-selected is-lifted"><i></i><i></i><i></i><span class="num">2</span></div>
+                  <div class="mini-page is-rotated"><i></i><i></i><i></i><i></i></div>
+                  <div class="mini-page"><i></i><i></i><i></i><span class="num">4</span></div>
+                  <div class="mini-page"><i></i><i></i><span class="num">5</span></div>
+                </div>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="layers"></i> Organize pages</h3>
+                <p class="bento-desc">Drag to reorder, rotate, duplicate, insert blank pages and delete, with full undo.</p>
+              </div>
+            </a>
+
+            <a class="bento-card reveal" href="/editor.html">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual" aria-hidden="true">
+                <div class="mini-stack">
+                  <div class="mini-page"><i></i><i></i><i></i></div>
+                  <div class="mini-page"><i></i><i></i><i></i><i></i></div>
+                  <div class="mini-page"><i></i><i></i><i></i></div>
+                </div>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="file-plus"></i> Merge</h3>
+                <p class="bento-desc">Combine any number of PDFs into one file.</p>
+              </div>
+            </a>
+
+            <a class="bento-card reveal" href="/editor.html">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual" aria-hidden="true">
+                <div class="mini-pages">
+                  <div class="mini-page"><div class="mini-photo"></div><i></i><i></i></div>
+                  <div class="mini-page"><div class="mini-photo" style="filter: hue-rotate(-20deg)"></div><i></i></div>
+                </div>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="image"></i> Images to PDF</h3>
+                <p class="bento-desc">Turn JPG and PNG photos or scans into pages.</p>
+              </div>
+            </a>
+
+            <a class="bento-card reveal" href="/editor.html">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual" aria-hidden="true">
+                <div class="mini-pages">
+                  <div class="mini-page"><i></i><i></i><i></i></div>
+                  <div class="mini-page is-selected"><i></i><i></i><i></i><i></i></div>
+                  <div class="mini-page is-selected"><i></i><i></i></div>
+                </div>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="scissors"></i> Extract &amp; split</h3>
+                <p class="bento-desc">Save any selection of pages as its own PDF.</p>
+              </div>
+            </a>
+
+            <div class="bento-card reveal">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual soon-visual" aria-hidden="true">
+                <p style="position: relative; font-size: 15px; color: var(--fg-2)">
+                  Annual <span class="hl">revenue grew 24%</span> year
+                </p>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="pen"></i> Annotate PDF</h3>
+                <p class="bento-desc">Edit supported PDF text in place; add text, highlights and freehand marks, or erase annotations.</p>
+              </div>
+            </div>
+
+            <div class="bento-card reveal">
+              <span class="badge badge-success card-badge"><span class="dot"></span> Live</span>
+              <div class="bento-visual" aria-hidden="true">
+                <span class="sig-line">J. Rivera</span>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="pen"></i> Freehand drawing</h3>
+                <p class="bento-desc">Add freehand marks to your PDF, processed on your device.</p>
+              </div>
+            </div>
+
+            <div class="bento-card span-2 reveal">
+              <span class="badge badge-muted card-badge">Soon</span>
+              <div class="bento-visual soon-visual" aria-hidden="true">
+                <div class="mini-pages">
+                  <div class="mini-page"><i></i><i></i><i></i><i></i></div>
+                  <div class="mini-page" style="transform: scale(0.75)"><i></i><i></i><i></i></div>
+                  <div class="mini-page" style="transform: scale(0.55)"><i></i><i></i></div>
+                </div>
+              </div>
+              <div class="bento-body">
+                <h3 class="bento-title"><i data-icon="shrink"></i> Compress, convert &amp; protect</h3>
+                <p class="bento-desc">Shrink file size, export pages as images, add watermarks and page numbers, and edit metadata.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 0">
+        <div class="container">
+          <div class="proof reveal">
+            <div>
+              <span class="badge" style="background: transparent; color: #a1a1aa; border-color: #3f3f46">Don&apos;t trust. Verify.</span>
+              <h2 style="margin-top: 16px">Open DevTools. Watch nothing happen.</h2>
+              <p>
+                Edit a 200-page contract and the Network tab stays empty. Our Content Security Policy tells your browser to
+                block any connection to another server, so a leak isn&apos;t just avoided, it&apos;s impossible.
+              </p>
+              <a class="btn btn-outline btn-lg" href="/privacy.html#verify">Read the privacy model <i data-icon="arrow-right"></i></a>
+            </div>
+            <div class="devtools" aria-hidden="true">
+              <div class="devtools-tabs"><span>Elements</span><span>Console</span><span class="is-active">Network</span><span>Sources</span></div>
+              <div class="devtools-row is-head"><span>Name</span><span>Status</span><span>Type</span><span>Size</span></div>
+              <div class="devtools-row"><span>contract-final.pdf</span><span class="ok">local</span><span>blob</span><span>—</span></div>
+              <div class="devtools-empty">After opening a file: <strong>0 requests</strong> to other servers</div>
+              <div class="devtools-foot"><span>0 / 0 requests</span><span>0 B transferred</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="faq" style="padding-top: 24px">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="badge">FAQ</span>
+            <h2 class="section-title">Questions, answered</h2>
+          </div>
+          <div class="faq reveal">
+            <details>
+              <summary>Are my files really never uploaded?<i data-icon="plus"></i></summary>
+              <p>
+                Yes. PrivyPDF has no backend that accepts files. Documents are read with the browser&apos;s File API, processed in
+                memory with pdf.js and pdf-lib, and saved back with a local download. A strict Content Security Policy blocks
+                connections to any other origin.
+              </p>
+            </details>
+            <details>
+              <summary>Do I need an account?<i data-icon="plus"></i></summary>
+              <p>No. There are no accounts, logins, cookies or analytics. Open the editor and start working.</p>
+            </details>
+            <details>
+              <summary>Does it work offline?<i data-icon="plus"></i></summary>
+              <p>
+                Once the page has loaded, every tool works without a connection. Full installable offline mode is coming in a
+                later release.
+              </p>
+            </details>
+            <details>
+              <summary>What happens to my file when I close the tab?<i data-icon="plus"></i></summary>
+              <p>It&apos;s gone. Files only live in the tab&apos;s memory and are discarded when you close or reload it.</p>
+            </details>
+            <details>
+              <summary>Is there a file size limit?<i data-icon="plus"></i></summary>
+              <p>
+                Only your device&apos;s memory. Files up to a few hundred megabytes work well on modern laptops. Pages render
+                lazily as you scroll so large documents stay responsive.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="final">
+        <div class="grid-bg" aria-hidden="true"></div>
+        <div class="container">
+          <h2>Your documents. Your device.</h2>
+          <p>Free, private and ready right now. No sign-up required.</p>
+          <a class="btn btn-accent btn-lg" href="/editor.html">Open the editor <i data-icon="arrow-right"></i></a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <a class="footer-brand" href="/" data-logo aria-label="PrivyPDF home"></a>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="/editor.html">Editor</a>
+          <a href="/#tools">Tools</a>
+          <a href="/privacy.html">Privacy</a>
+          <a href="/#faq">FAQ</a>
+        </nav>
+        <span>Processed on your device. Always.</span>
+      </div>
+    </footer>
+  </body>
+</html>
