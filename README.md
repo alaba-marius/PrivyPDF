@@ -14,6 +14,7 @@
     <img src="https://img.shields.io/badge/PDF.js-6.4.299-red" alt="PDF.js 6.4.299" />
     <img src="https://img.shields.io/badge/pdf--lib-1.17.1-blue" alt="pdf-lib 1.17.1" />
     <img src="https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white" alt="Vercel" />
+    <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" />
   </p>
 </div>
 
@@ -25,6 +26,7 @@
 - **[pdf-lib](https://pdf-lib.js.org/) 1.17.1** — builds and exports the edited PDF on-device.
 - **Self-hosted fonts and libraries** — everything is vendored locally, with no third-party CDN.
 - **Vercel** — hosts the official site at [privy-pdf.vercel.app](https://privy-pdf.vercel.app/), with security headers from `_headers`.
+- **Docker (optional)** — a small nginx image that serves the static site, published to GitHub Container Registry.
 
 ## Highlights
 
@@ -39,19 +41,141 @@
 
 ## Get started
 
-### Use the official website
+### Which option should I pick?
 
-PrivyPDF is hosted at **[privy-pdf.vercel.app](https://privy-pdf.vercel.app/)**. Open it and choose **Open editor**. There is nothing to install or set up, and your files still stay on your device.
+| If you... | Use this |
+| --- | --- |
+| Just want to edit a PDF | [**Option 1: Use the website**](#option-1-use-the-website-easiest) |
+| Want a private copy on your own computer and are comfortable installing programs | [**Option 2: Docker**](#option-2-run-it-with-docker) |
+| Already have Python or Node.js | [**Option 3: Run from source**](#option-3-run-it-from-source) |
 
-### Run it locally
+If you are not sure, choose **Option 1**. It needs no installation, and your files still stay on your device.
 
-You can also run your own copy. PrivyPDF is a static site. Serve this folder over HTTP; opening an HTML file directly with `file://` can prevent JavaScript modules and PDF.js workers from loading.
+---
+
+### Option 1: Use the website (easiest)
+
+1. Open **[privy-pdf.vercel.app](https://privy-pdf.vercel.app/)** in your browser.
+2. Click **Open editor**.
+3. Open a PDF, edit it, and click **Download** when you are done.
+
+That is all. There is nothing to install, no account, and no upload. Your PDF is processed inside your own browser and never sent to a server.
+
+---
+
+### Option 2: Run it with Docker
+
+Docker lets you run PrivyPDF on your own computer with a single command, without downloading the source code.
+
+> **What is Docker?** It is a free program that runs ready-made apps in a sealed box called a *container*. You install Docker once, then start PrivyPDF with one line.
+
+#### If you already have Docker
 
 ```bash
-python -m http.server 8000
+docker run -p 8080:80 ghcr.io/alaba-marius/privypdf
 ```
 
-Then open [http://localhost:8000](http://localhost:8000) and choose **Open editor**.
+Then open [http://localhost:8080](http://localhost:8080) in your browser and click **Open editor**.
+
+To stop it, press `Ctrl + C` in the terminal window.
+
+If port 8080 is already in use, pick another number on the left, for example `-p 9090:80`, and open `http://localhost:9090` instead.
+
+#### If you do not have Docker (step-by-step for beginners)
+
+You only need to do steps 1 to 3 once.
+
+**Step 1: Install Docker Desktop**
+
+1. Go to [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/).
+2. Download the version for your computer (Windows, Mac, or Linux).
+3. Open the file you downloaded and follow the installer.
+   - **Windows:** if it asks to enable **WSL 2**, say yes. Restart your computer if it asks you to.
+   - **Mac:** drag Docker into the Applications folder when prompted. Choose the **Apple Silicon** version for newer Macs (M1, M2, M3, M4), or **Intel** for older ones.
+
+**Step 2: Start Docker Desktop**
+
+1. Open **Docker Desktop** from your Start menu (Windows) or Applications folder (Mac).
+2. Accept the terms if it asks. You can skip signing in.
+3. Wait until the bottom-left corner shows that Docker is running (a green indicator or "Engine running"). This can take a minute the first time.
+
+Docker must be open and running every time you use PrivyPDF this way.
+
+**Step 3: Open a terminal**
+
+- **Windows:** press the Windows key, type `cmd`, and press Enter.
+- **Mac:** press `Cmd + Space`, type `Terminal`, and press Enter.
+
+**Step 4: Start PrivyPDF**
+
+Copy this line, paste it into the terminal window, and press Enter:
+
+```bash
+docker run -p 8080:80 ghcr.io/alaba-marius/privypdf
+```
+
+The first time, Docker downloads the app, which may take a short while. When the text stops scrolling, it is ready.
+
+**Step 5: Open the app**
+
+Open your browser and go to **[http://localhost:8080](http://localhost:8080)**, then click **Open editor**.
+
+**Step 6: Stop it when you are done**
+
+Click the terminal window and press `Ctrl + C`. You can then close Docker Desktop.
+
+To use PrivyPDF again later, open Docker Desktop, wait for it to start, and repeat Steps 3 to 5. You do not need to reinstall anything.
+
+#### Troubleshooting
+
+| Problem | What to do |
+| --- | --- |
+| `'docker' is not recognized` or `command not found` | Docker Desktop is not installed yet, or you have not restarted your computer after installing. Install it (Step 1), restart, then try again. |
+| `Cannot connect to the Docker daemon` or similar | Docker Desktop is not running. Open it and wait until it says it is running. |
+| `port is already allocated` | Something else is using port 8080. Use a different number, for example `docker run -p 9090:80 ghcr.io/alaba-marius/privypdf`, then open `http://localhost:9090`. |
+| The page does not load | Make sure the terminal window is still open and the command is still running. |
+| Installation feels like too much | Use [Option 1](#option-1-use-the-website-easiest). It does the same thing with nothing to install. |
+
+#### Is it still private?
+
+Yes. The Docker container only hands your browser the app's code. Your PDF is opened and edited inside your browser, exactly like on the live site, and is never sent to the container or anywhere else. You can check this yourself: open your browser's developer tools (press `F12`), go to the **Network** tab, load a PDF, and confirm that no upload requests appear. See [`privacy.html`](./privacy.html) for more.
+
+---
+
+### Option 3: Run it from source
+
+PrivyPDF is a static site. You need to serve the folder over HTTP; opening an HTML file directly with `file://` can prevent JavaScript modules and PDF.js workers from loading.
+
+**1. Get the code**
+
+```bash
+git clone https://github.com/alaba-marius/PrivyPDF.git
+cd PrivyPDF
+```
+
+No Git? On GitHub, click **Code → Download ZIP**, unzip it, and open a terminal inside the extracted folder. On Windows, you can open the folder in File Explorer, click the address bar, type `cmd`, and press Enter.
+
+**2. Start a local server** (use whichever you have installed)
+
+```bash
+# Python 3 (macOS/Linux)
+python3 -m http.server 8000
+
+# Python 3 (Windows)
+python -m http.server 8000
+# or: py -m http.server 8000
+
+# Node.js
+npx serve -l 8000
+```
+
+**3. Open the app**
+
+Go to [http://localhost:8000](http://localhost:8000) and choose **Open editor**.
+
+Press `Ctrl + C` in the terminal to stop the server. If port 8000 is already in use, pick another number (for example `8080`) and use it in the URL.
+
+> Run the command from the project root, the folder that contains `index.html`.
 
 ## Editing existing PDF text
 
@@ -78,10 +202,13 @@ For other content, add a text annotation instead. Text overlays use standard Hel
 | `vendor/` | Self-hosted PDF.js, pdf-lib, fonts, and PDF.js resources |
 | `tests/` | Sample PDFs and manual smoke-test instructions |
 | `_headers` | Security headers for compatible static hosts |
+| `Dockerfile` | Builds the nginx image that serves the static site |
+| `.dockerignore` | Files excluded from the Docker image |
+| `.github/workflows/docker.yml` | Builds and publishes the Docker image to GitHub Container Registry |
 
 ## Privacy and dependencies
 
-PDF processing runs in the browser. The project uses self-hosted PDF.js (`pdfjs-dist` 6.4.299), pdf-lib 1.17.1, and local fonts; it requires no third-party CDN or build step. Each HTML page applies a Content Security Policy, and `_headers` provides additional security headers on supported static hosts.
+PDF processing runs in the browser. The project uses self-hosted PDF.js (`pdfjs-dist` 6.4.299), pdf-lib 1.17.1, and local fonts; it requires no third-party CDN or build step. Each HTML page applies a Content Security Policy, and `_headers` provides additional security headers on supported static hosts. The optional Docker image only serves these static files; it does not receive or process your PDFs.
 
 Keep the upstream notices when updating vendored files: `vendor/pdfjs/LICENSE`, `vendor/pdf-lib/LICENSE.md`, and `vendor/fonts/OFL.txt`. PDF.js subcomponent notices are kept with their resources.
 
