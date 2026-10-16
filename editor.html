@@ -237,6 +237,44 @@
         <section class="panel-section edit-panel-section" id="edit-panel">
           <h2 class="panel-title">Edit PDF</h2>
           <p class="panel-muted">Reorder items to move them in front of or behind other content.</p>
+          <section class="pdf-text-properties" id="pdf-text-properties" aria-label="Selected PDF text properties" hidden>
+            <h3>Selected PDF text</h3>
+            <p class="panel-muted">Edit the replacement directly on the page, or select characters to record formatting overrides.</p>
+            <dl class="kv pdf-text-property-list">
+              <div><dt>Original text</dt><dd id="pdf-text-original"></dd></div>
+              <div><dt>Current text</dt><dd id="pdf-text-current"></dd></div>
+              <div><dt>PDF.js font family</dt><dd id="pdf-text-font-family"></dd></div>
+              <div><dt>Estimated size</dt><dd id="pdf-text-font-size"></dd></div>
+              <div><dt>Bold</dt><dd id="pdf-text-bold"></dd></div>
+              <div><dt>Italic</dt><dd id="pdf-text-italic"></dd></div>
+              <div><dt>Sampled text color</dt><dd id="pdf-text-color"></dd></div>
+            </dl>
+            <section class="pdf-text-range-controls" id="pdf-text-range-controls" aria-label="Selected character formatting" hidden>
+              <h4>Selected characters</h4>
+              <p class="pdf-text-range-selection" id="pdf-range-selection-text"></p>
+              <p class="panel-muted">Formatting is included in PDF export when the source text can be matched safely. Unsupported font or text states stop the export without changing the PDF.</p>
+              <label class="field">
+                <span class="field-label">Font family</span>
+                <select class="input" id="pdf-range-font-family">
+                  <option value="Helvetica">Helvetica</option>
+                  <option value="TimesRoman">Times</option>
+                  <option value="Courier">Courier</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Font size (pt)</span>
+                <input class="input" id="pdf-range-font-size" type="number" min="1" max="512" step="1" value="12" />
+              </label>
+              <div class="pdf-text-range-toggle-row" role="group" aria-label="Character formatting">
+                <button class="btn btn-outline btn-sm" id="pdf-range-bold" type="button" aria-pressed="false">Bold</button>
+                <button class="btn btn-outline btn-sm" id="pdf-range-italic" type="button" aria-pressed="false">Italic</button>
+              </div>
+              <label class="field pdf-range-color-field">
+                <span class="field-label">Text color</span>
+                <input id="pdf-range-color" type="color" value="#171717" aria-label="Selected character text color" />
+              </label>
+            </section>
+          </section>
           <div class="annotation-list-head">
             <h3 id="annotation-page-label">Page 1</h3>
             <button class="btn btn-ghost btn-sm is-danger-text" id="remove-all-annotations" type="button">Remove all</button>

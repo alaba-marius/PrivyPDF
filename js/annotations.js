@@ -2,6 +2,15 @@ import * as pdfjs from "/vendor/pdfjs/pdf.min.js";
 import { icon } from "./icons.js";
 import { validateTextEdit } from "./pdf-viewer.js";
 import { isTextMarkAnnotation, TEXT_MARK_TOOLS } from "./text-marks.js";
+import {
+  applyFormattingRange,
+  formattingTextSegments,
+  normalizeFormattingRanges,
+  remapFormattingRanges,
+  remapTextRange,
+  styleForTextRange,
+  validateTextRange,
+} from "./text-ranges.js";
 
 export function selectFromEvent(state, id, event, indexOf, renderSelection) {
   if (event.shiftKey && state.anchorId) {
@@ -48,6 +57,22 @@ function baselineToScreen(point, rotation) {
     default:
       return point;
   }
+}
+
+function colorInputValue(color, fallback = "#171717") {
+  if (typeof color !== "string") return fallback;
+  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const value = hex[1].length === 3
+      ? [...hex[1]].map((channel) => channel + channel).join("")
+      : hex[1];
+    return `#${value.toLowerCase()}`;
+  }
+  const rgb = color.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/i);
+  if (!rgb) return fallback;
+  return `#${rgb.slice(1, 4)
+    .map((channel) => Math.max(0, Math.min(255, Number(channel))).toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function projectBox(box, rotation) {
@@ -1103,11 +1128,210 @@ export function createAnnotationEditor({
     renderAnnotationPalette();
   }
 
+  function rangesForTarget(pageId, textTargetId) {
+    const page = state.pages.find((item) => item.id === pageId);
+    return (page?.formattingRanges || [])
+      .filter((range) => range.textTargetId === textTargetId)
+      .map(({ start, end, style }) => ({ start, end, style }));
+  }
+
+  function textOffsetPoint(root, offset) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let remaining = offset;
+    let last = null;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      last = node;
+      if (remaining <= node.textContent.length) return { node, offset: remaining };
+      remaining -= node.textContent.length;
+    }
+    return last ? { node: last, offset: last.textContent.length } : null;
+  }
+
+  function renderFormattedText(root, text, ranges, scale, preserveSelection = false) {
+    const canRestoreSelection = preserveSelection &&
+      !document.activeElement?.closest?.("#pdf-text-range-controls");
+    const selection = canRestoreSelection ? window.getSelection() : null;
+    const anchorInside = selection?.anchorNode &&
+      (root.contains(selection.anchorNode) || root === selection.anchorNode);
+    const focusInside = selection?.focusNode &&
+      (root.contains(selection.focusNode) || root === selection.focusNode);
+    const anchorOffset = Number.isInteger(preserveSelection?.start) && canRestoreSelection
+      ? preserveSelection.start
+      : anchorInside
+        ? rangeOffset(root, selection.anchorNode, selection.anchorOffset)
+        : null;
+    const focusOffset = Number.isInteger(preserveSelection?.end) && canRestoreSelection
+      ? preserveSelection.end
+      : focusInside
+        ? rangeOffset(root, selection.focusNode, selection.focusOffset)
+        : null;
+    const fragment = document.createDocumentFragment();
+    for (const segment of formattingTextSegments(text, ranges)) {
+      if (!segment.style) {
+        fragment.append(document.createTextNode(segment.text));
+        continue;
+      }
+      const span = document.createElement("span");
+      const { fontFamily, fontSize, bold, italic, color } = segment.style;
+      if (fontFamily) span.style.fontFamily = editorFontFamily(fontFamily);
+      if (fontSize) span.style.fontSize = `${fontSize * scale}px`;
+      if (bold != null) span.style.fontWeight = bold ? "bold" : "normal";
+      if (italic != null) span.style.fontStyle = italic ? "italic" : "normal";
+      if (color) span.style.color = color;
+      span.textContent = segment.text;
+      fragment.append(span);
+    }
+    root.replaceChildren(fragment);
+    if (anchorOffset == null || focusOffset == null || !selection?.setBaseAndExtent) return;
+    const anchor = textOffsetPoint(root, anchorOffset);
+    const focus = textOffsetPoint(root, focusOffset);
+    if (anchor && focus) {
+      selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+    }
+  }
+
+  function formattingSource(selection) {
+    const page = state.pages.find((item) => item.id === selection.pageId);
+    return state.textSelection?.textTargetId === selection.textTargetId
+      ? state.textSelection
+      : page?.annotations?.find(
+          (item) => item.type === "text-edit" && item.sourceTextId === selection.textTargetId
+        ) || null;
+  }
+
+  function activeFormattingRange() {
+    const range = state.textRangeSelection;
+    if (
+      state.editorMode !== "edit" ||
+      state.annotationTool !== "select" ||
+      !range?.textTargetId ||
+      !validateTextRange(range.text, range)
+    ) return null;
+    const page = state.pages.find((item) => item.id === range.pageId);
+    if (!page) return null;
+    const edit = page.annotations?.find(
+      (item) => item.type === "text-edit" && item.sourceTextId === range.textTargetId
+    );
+    const currentText = edit ? edit.text : range.text;
+    return currentText === range.text ? range : null;
+  }
+
+  function rangeOffset(root, node, offset) {
+    if (!root.contains(node) && root !== node) return null;
+    const before = document.createRange();
+    before.selectNodeContents(root);
+    try {
+      before.setEnd(node, offset);
+      return before.toString().length;
+    } catch {
+      return null;
+    }
+  }
+
+  function textRangeFromSelection(root, textTargetId, text, pageId, annotationId = null) {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !textTargetId || root.textContent !== text) return null;
+    const domRange = selection.getRangeAt(0);
+    const startOffset = rangeOffset(root, domRange.startContainer, domRange.startOffset);
+    const endOffset = rangeOffset(root, domRange.endContainer, domRange.endOffset);
+    if (startOffset == null || endOffset == null) return null;
+    const start = Math.min(startOffset, endOffset);
+    const end = Math.max(startOffset, endOffset);
+    const result = { pageId, textTargetId, text, start, end };
+    if (annotationId) result.annotationId = annotationId;
+    return validateTextRange(text, result) &&
+      text.slice(start, end) === selection.toString()
+      ? result
+      : null;
+  }
+
+  function captureInlineTextRange() {
+    if (document.activeElement?.closest?.("#pdf-text-range-controls")) return;
+    if (state.editorMode !== "edit" || state.annotationTool !== "select") return;
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode;
+    const root = anchor instanceof Element
+      ? anchor.closest(".annotation-inline-edit-text")
+      : anchor?.parentElement?.closest(".annotation-inline-edit-text");
+    if (!root || !root.isContentEditable) return;
+    const mark = root.closest(".annotation-inline-edit");
+    const pageId = mark?.closest(".vpage")?.dataset.id;
+    const page = state.pages.find((item) => item.id === pageId);
+    const annotation = page?.annotations?.find(
+      (item) => item.id === mark?.dataset.annotationId && item.type === "text-edit"
+    );
+    if (!page || !annotation?.sourceTextId) return;
+    const textRange = textRangeFromSelection(
+      root,
+      annotation.sourceTextId,
+      root.textContent || "",
+      page.id,
+      annotation.id
+    );
+    if (textRange) state.textRangeSelection = textRange;
+    else if (!selection?.isCollapsed) state.textRangeSelection = null;
+    renderInspector();
+  }
+  document.addEventListener("selectionchange", captureInlineTextRange);
+
   function renderInspector() {
     const selection = state.textSelection;
     const annotation = activeAnnotation();
     const hasText = selection?.kind === "text";
     const editingInline = annotation?.type === "text-edit";
+    const pdfText = hasText ? selection : editingInline ? annotation : null;
+    const pdfTextProperties = document.getElementById("pdf-text-properties");
+    pdfTextProperties.hidden = state.editorMode !== "edit" || !pdfText;
+    if (pdfText) {
+      document.getElementById("pdf-text-original").textContent =
+        pdfText.originalText || pdfText.text || "";
+      document.getElementById("pdf-text-current").textContent = pdfText.text || "";
+      document.getElementById("pdf-text-font-family").textContent =
+        pdfText.sourceFontFamily || "Unavailable";
+      document.getElementById("pdf-text-font-size").textContent =
+        Number.isFinite(pdfText.fontSize)
+          ? `${pdfText.fontSize.toFixed(1)} pt (approx.)`
+          : "Unavailable";
+      document.getElementById("pdf-text-bold").textContent =
+        pdfText.sourceBold === true
+          ? "Detected"
+          : pdfText.sourceBold === false
+            ? "Not detected"
+            : "Unavailable";
+      document.getElementById("pdf-text-italic").textContent =
+        pdfText.sourceItalic === true
+          ? "Detected"
+          : pdfText.sourceItalic === false
+            ? "Not detected"
+            : "Unavailable";
+      document.getElementById("pdf-text-color").textContent =
+        pdfText.sourceTextColor || "Unavailable";
+    }
+    const rangeSelection = activeFormattingRange();
+    const rangeControls = document.getElementById("pdf-text-range-controls");
+    rangeControls.hidden = !rangeSelection || state.editorMode !== "edit";
+    if (rangeSelection) {
+      const ranges = rangesForTarget(rangeSelection.pageId, rangeSelection.textTargetId);
+      const style = styleForTextRange(ranges, rangeSelection.start, rangeSelection.end);
+      const source = formattingSource(rangeSelection);
+      document.getElementById("pdf-range-font-family").value =
+        style.fontFamily || source?.fontFamily || "Helvetica";
+      document.getElementById("pdf-range-font-size").value =
+        String(Math.round(style.fontSize || source?.fontSize || 12));
+      document.getElementById("pdf-range-bold").setAttribute(
+        "aria-pressed",
+        String(style.bold ?? (source?.sourceBold === true || source?.fontWeight === "bold"))
+      );
+      document.getElementById("pdf-range-italic").setAttribute(
+        "aria-pressed",
+        String(style.italic ?? (source?.sourceItalic === true || source?.fontStyle === "italic"))
+      );
+      document.getElementById("pdf-range-color").value =
+        colorInputValue(style.color || source?.sourceTextColor);
+      document.getElementById("pdf-range-selection-text").textContent =
+        rangeSelection.text.slice(rangeSelection.start, rangeSelection.end);
+    }
     document.body.classList.toggle("has-text-inspector", Boolean(selection));
     els.textInspector.hidden = !selection;
     els.selectedText.value = hasText ? selection.text : annotation?.text || "";
@@ -1498,6 +1722,7 @@ export function createAnnotationEditor({
     if (tool === "paragraph") tool = "text";
     const selectedAnnotation = activeAnnotation();
     if (isTextMarkAnnotation(selectedAnnotation)) state.textSelection = null;
+    if (tool !== "select") state.textRangeSelection = null;
     state.annotationTool = tool;
     document.body.dataset.annotationTool = tool;
     if (tool !== "text") closeTextOptions();
@@ -3116,7 +3341,10 @@ export function createAnnotationEditor({
           textContent.setAttribute("role", "textbox");
           textContent.setAttribute("aria-label", "Edit selected PDF text");
           textContent.setAttribute("spellcheck", "false");
-          textContent.textContent = annotation.text;
+          const formattingRanges = !staticPreview && annotation.sourceTextId
+            ? rangesForTarget(page.id, annotation.sourceTextId)
+            : [];
+          renderFormattedText(textContent, annotation.text, formattingRanges, scale);
           if (!staticPreview && annotation.validationError) {
             textContent.setAttribute("aria-invalid", "true");
             textContent.title = annotation.validationError;
@@ -3134,7 +3362,10 @@ export function createAnnotationEditor({
           textContent.addEventListener("focus", () => inlineEditBases.set(textContent, annotation.text));
           textContent.addEventListener("input", () => {
             annotation.text = textContent.textContent || "";
-            if (state.textSelection?.annotationId === annotation.id) els.selectedText.value = annotation.text;
+            if (state.textSelection?.annotationId === annotation.id) {
+              els.selectedText.value = annotation.text;
+              document.getElementById("pdf-text-current").textContent = annotation.text;
+            }
             renderThumbnail(page);
             const measure = document.createElement("canvas").getContext("2d");
             if (measure) {
@@ -3761,13 +3992,53 @@ export function createAnnotationEditor({
         const deltaY = event.clientY - drag.y;
         const selection = window.getSelection();
         const selectedText = selection && !selection.isCollapsed
-          ? selection.toString().trim()
+          ? selection.toString()
           : "";
         if (!drag.altKey && selectedText) {
+          const selectedRange = textRangeFromSelection(
+            drag.span,
+            drag.span.dataset.textTargetId,
+            drag.span.textContent || "",
+            page.id
+          );
+          if (selectedRange && drag.text === drag.span.textContent) {
+            const appearance = sampleTextAppearance(container.querySelector("canvas"), drag.span);
+            const cell = drag.item.tableCell;
+            const textBox = cell
+              ? cell.textBox || cell
+              : drag.item.box;
+            state.textSelection = {
+              pageId: page.id,
+              kind: "text",
+              text: selectedRange.text,
+              occurrenceIndex: drag.item.occurrenceIndex,
+              textTargetId: drag.item.textTargetId,
+              fontSize: Math.max(6, (textBox.h * page.height * scale) / 1.25 / scale),
+              fontFamily: resolveFontFamily(drag.item.fontStyle, drag.item.fontMetadata),
+              fontWeight: drag.item.fontMetadata?.bold ? "bold" : "normal",
+              fontStyle: drag.item.fontMetadata?.italic ? "italic" : "normal",
+              sourceFontFamily: drag.item.fontStyle?.fontFamily || null,
+              sourceBold: drag.item.fontMetadata?.bold ?? null,
+              sourceItalic: drag.item.fontMetadata?.italic ?? null,
+              fill: appearance?.fill,
+              textColor: appearance?.color,
+              sourceTextColor: appearance?.color || null,
+              x: textBox.x,
+              y: textBox.y,
+              w: textBox.w,
+              h: textBox.h,
+            };
+            state.textRangeSelection = selectedRange;
+            textLayer.querySelectorAll(".is-text-selected").forEach((selected) =>
+              selected.classList.remove("is-text-selected")
+            );
+            drag.span.classList.add("is-text-selected");
+            renderInspector();
+            suppressNextPdfTextClick();
+            return;
+          }
           if (selectedText !== drag.text.trim()) {
-            if (event.target instanceof Element && event.target.closest(".pdf-text-item")) {
-              suppressNextPdfTextClick();
-            }
+            suppressNextPdfTextClick();
             toast("PDF replacement covers the whole run. Click it, then select a word in the inline editor.", {
               type: "error",
             });
@@ -3801,8 +4072,12 @@ export function createAnnotationEditor({
           fontFamily: resolveFontFamily(drag.item.fontStyle, drag.item.fontMetadata),
           fontWeight: drag.item.fontMetadata?.bold ? "bold" : "normal",
           fontStyle: drag.item.fontMetadata?.italic ? "italic" : "normal",
+          sourceFontFamily: drag.item.fontStyle?.fontFamily || null,
+          sourceBold: drag.item.fontMetadata?.bold ?? null,
+          sourceItalic: drag.item.fontMetadata?.italic ?? null,
           fill: appearance?.fill,
           textColor: appearance?.color,
+          sourceTextColor: appearance?.color || null,
           x: textBox.x,
           y: textBox.y,
           w: textBox.w,
@@ -3886,6 +4161,7 @@ export function createAnnotationEditor({
           }
           if (state.annotationTool !== "select") return;
           event.stopPropagation();
+          state.textRangeSelection = null;
           const appearance = sampleTextAppearance(container.querySelector("canvas"), span);
           const cell = item.tableCell;
           const textSelection = cell
@@ -3913,8 +4189,12 @@ export function createAnnotationEditor({
             fontFamily: resolveFontFamily(item.fontStyle, item.fontMetadata),
             fontWeight: item.fontMetadata?.bold ? "bold" : "normal",
             fontStyle: item.fontMetadata?.italic ? "italic" : "normal",
+            sourceFontFamily: item.fontStyle?.fontFamily || null,
+            sourceBold: item.fontMetadata?.bold ?? null,
+            sourceItalic: item.fontMetadata?.italic ?? null,
             fill: appearance?.fill,
             textColor: appearance?.color,
+            sourceTextColor: appearance?.color || null,
             ...textSelection,
           };
           renderInspector();
@@ -4145,6 +4425,34 @@ export function createAnnotationEditor({
       : annotation.type === "text-edit" && annotation.sourceTextId
         ? { kind: "pdf", id: annotation.sourceTextId }
         : null;
+    const remappedRanges = hasTextPatch && annotation.type === "text-edit" &&
+        annotation.sourceTextId && typeof patch.text === "string"
+      ? (() => {
+          const ranges = page.formattingRanges || [];
+          const targetRanges = ranges.filter(
+            (range) => range.textTargetId === annotation.sourceTextId
+          );
+          if (!targetRanges.length) return null;
+          const oldText = targetRanges[0].text || annotation.text;
+          return {
+            oldText,
+            ranges: remapFormattingRanges(
+              oldText,
+              patch.text,
+              targetRanges.map(({ start, end, style }) => ({ start, end, style }))
+            ),
+          };
+        })()
+      : null;
+    const selectedRange = state.textRangeSelection;
+    const remappedSelection = hasTextPatch &&
+        annotation.type === "text-edit" &&
+        annotation.sourceTextId &&
+        typeof patch.text === "string" &&
+        selectedRange?.textTargetId === annotation.sourceTextId &&
+        selectedRange.text === annotation.text
+      ? remapTextRange(annotation.text, patch.text, selectedRange)
+      : null;
     if (hasTextPatch && patch.text) refreshAttachedTextMarks(page, target, updated);
     commit(() => {
       const deletedTextTarget = clearsText
@@ -4161,16 +4469,198 @@ export function createAnnotationEditor({
             item.textTarget?.kind === deletedTextTarget.kind &&
             item.textTarget.id === deletedTextTarget.id)
         );
+      if (remappedRanges) {
+        page.formattingRanges = [
+          ...(page.formattingRanges || []).filter(
+            (range) => range.textTargetId !== annotation.sourceTextId
+          ),
+          ...remappedRanges.ranges.map((range) => ({
+            ...range,
+            textTargetId: annotation.sourceTextId,
+            text: patch.text,
+          })),
+        ];
+      }
+      if (remappedSelection) {
+        state.textRangeSelection = {
+          ...selectedRange,
+          text: patch.text,
+          start: remappedSelection.start,
+          end: remappedSelection.end,
+        };
+      } else if (
+        hasTextPatch &&
+        annotation.type === "text-edit" &&
+        annotation.sourceTextId &&
+        selectedRange?.textTargetId === annotation.sourceTextId &&
+        selectedRange?.text === annotation.text
+      ) {
+        state.textRangeSelection = null;
+      }
       state.textSelection = { pageId: page.id, kind: "annotation", annotationId: updated.id };
     });
     renderInspector();
   }
 
+  async function updateFormattingRange(style) {
+    const selection = activeFormattingRange();
+    if (!selection) return;
+    const page = state.pages.find((item) => item.id === selection.pageId);
+    if (!page) return;
+    let textEdit = page.annotations?.find(
+      (item) => item.type === "text-edit" && item.sourceTextId === selection.textTargetId
+    );
+    if (!textEdit && state.textSelection?.kind === "text" &&
+        state.textSelection.textTargetId === selection.textTargetId) {
+      const source = state.textSelection;
+      textEdit = {
+        id: crypto.randomUUID(),
+        type: "text-edit",
+        x: source.x,
+        y: source.y,
+        w: source.w,
+        h: source.h,
+        text: source.text,
+        color: source.textColor || "#171717",
+        fill: source.fill,
+        fontSize: source.fontSize,
+        fontFamily: source.fontFamily,
+        fontWeight: source.fontWeight,
+        fontStyle: source.fontStyle,
+        sourceFontFamily: source.sourceFontFamily,
+        sourceBold: source.sourceBold,
+        sourceItalic: source.sourceItalic,
+        sourceTextColor: source.sourceTextColor,
+        originalText: source.text,
+        occurrenceIndex: source.occurrenceIndex,
+        sourceTextId: selection.textTargetId,
+      };
+      const validationError = await textEditValidationError(page, textEdit);
+      if (activeFormattingRange() !== selection || !state.pages.includes(page)) return;
+      if (validationError) {
+        toast(`This character formatting cannot be exported safely: ${validationError}`, { type: "error" });
+        return;
+      }
+    }
+    const existing = page.formattingRanges || [];
+    const targetRanges = rangesForTarget(selection.pageId, selection.textTargetId);
+    const nextRanges = applyFormattingRange(
+      selection.text,
+      targetRanges,
+      selection.start,
+      selection.end,
+      style
+    );
+    commit(() => {
+      if (textEdit && !page.annotations?.some((item) => item.id === textEdit.id)) {
+        page.annotations = [...(page.annotations || []), textEdit];
+      }
+      page.formattingRanges = [
+        ...existing.filter((range) => range.textTargetId !== selection.textTargetId),
+        ...nextRanges.map((range) => ({
+          ...range,
+          textTargetId: selection.textTargetId,
+          text: selection.text,
+        })),
+      ];
+    }, { render: false });
+    const annotation = page.annotations?.find(
+      (item) => item.type === "text-edit" && item.sourceTextId === selection.textTargetId
+    );
+    const pageElement = [...els.pages.children].find(
+      (element) => element.dataset.id === selection.pageId
+    );
+    const textContent = annotation && pageElement
+      ? [...pageElement.querySelectorAll(".annotation-inline-edit[data-text-target-id]")]
+          .find((mark) => mark.dataset.textTargetId === selection.textTargetId)
+          ?.querySelector(".annotation-inline-edit-text")
+      : null;
+    if (textContent) {
+      renderFormattedText(
+        textContent,
+        annotation.text,
+        nextRanges,
+        state.zoom,
+        { start: selection.start, end: selection.end }
+      );
+    }
+    renderInspector();
+  }
+
+  function currentRangeStyle() {
+    const selection = activeFormattingRange();
+    if (!selection) return {};
+    return styleForTextRange(
+      rangesForTarget(selection.pageId, selection.textTargetId),
+      selection.start,
+      selection.end
+    );
+  }
+
+  document.getElementById("pdf-range-font-family").addEventListener("change", (event) => {
+    updateFormattingRange({ fontFamily: event.currentTarget.value });
+  });
+  document.getElementById("pdf-range-font-size").addEventListener("change", (event) => {
+    const input = event.currentTarget;
+    if (!input.reportValidity()) return;
+    updateFormattingRange({ fontSize: Number(input.value) });
+  });
+  document.getElementById("pdf-range-bold").addEventListener("click", () => {
+    const style = currentRangeStyle();
+    const source = state.textRangeSelection && formattingSource(state.textRangeSelection);
+    updateFormattingRange({
+      bold: !(style.bold ?? (source?.sourceBold === true || source?.fontWeight === "bold")),
+    });
+  });
+  document.getElementById("pdf-range-italic").addEventListener("click", () => {
+    const style = currentRangeStyle();
+    const source = state.textRangeSelection && formattingSource(state.textRangeSelection);
+    updateFormattingRange({
+      italic: !(style.italic ?? (source?.sourceItalic === true || source?.fontStyle === "italic")),
+    });
+  });
+  document.getElementById("pdf-range-color").addEventListener("change", (event) => {
+    updateFormattingRange({ color: event.currentTarget.value });
+  });
+
   async function textEditValidationError(page, annotation) {
     const finishBusy = beginBusy("Checking in-place text edit…");
     try {
+      let formattingRanges = page.formattingRanges || [];
+      if (
+        annotation.type === "text-edit" &&
+        annotation.sourceTextId &&
+        typeof annotation.text === "string"
+      ) {
+        const targetRanges = formattingRanges.filter(
+          (range) => range.textTargetId === annotation.sourceTextId
+        );
+        const existingEdit = page.annotations?.find(
+          (item) =>
+            item.type === "text-edit" &&
+            item.sourceTextId === annotation.sourceTextId
+        );
+        const oldText = targetRanges[0]?.text || existingEdit?.text;
+        if (targetRanges.length && oldText && oldText !== annotation.text) {
+          formattingRanges = [
+            ...formattingRanges.filter(
+              (range) => range.textTargetId !== annotation.sourceTextId
+            ),
+            ...remapFormattingRanges(
+              oldText,
+              annotation.text,
+              targetRanges.map(({ start, end, style }) => ({ start, end, style }))
+            ).map((range) => ({
+              ...range,
+              textTargetId: annotation.sourceTextId,
+              text: annotation.text,
+            })),
+          ];
+        }
+      }
       const candidate = {
         ...page,
+        formattingRanges,
         annotations: [
           ...(page.annotations || []).filter((item) => item.id !== annotation.id),
           annotation,
@@ -4243,6 +4733,10 @@ export function createAnnotationEditor({
         fontFamily: selection.fontFamily,
         fontWeight: selection.fontWeight,
         fontStyle: selection.fontStyle,
+        sourceFontFamily: selection.sourceFontFamily,
+        sourceBold: selection.sourceBold,
+        sourceItalic: selection.sourceItalic,
+        sourceTextColor: selection.sourceTextColor,
         originalText: selection.text,
         occurrenceIndex: selection.occurrenceIndex,
         ...(selection.textTargetId ? { sourceTextId: selection.textTargetId } : {}),
@@ -4284,6 +4778,7 @@ export function createAnnotationEditor({
   function clearSelection() {
     const selection = state.textSelection;
     state.textSelection = null;
+    state.textRangeSelection = null;
     if (selection) {
       const page = state.pages.find((item) => item.id === selection.pageId);
       const pageElement = [...els.pages.children].find(

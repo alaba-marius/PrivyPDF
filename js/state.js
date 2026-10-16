@@ -48,6 +48,7 @@ export function createEditorState() {
     focusId: null,
     currentId: null,
     textSelection: null,
+    textRangeSelection: null,
     annotationTool: "drag",
     editorMode: "annotate",
     zoom: 1,
