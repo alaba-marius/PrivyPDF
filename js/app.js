@@ -39,6 +39,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   body: document.body,
   workspace: $("workspace"),
+  toolbar: document.querySelector(".toolbar"),
   thumbs: $("thumbs"),
   viewer: $("viewer"),
   pages: $("pages"),
@@ -80,11 +81,70 @@ const els = {
   undo: $("btn-undo"),
   redo: $("btn-redo"),
   download: $("btn-download"),
+  operationStatus: $("operation-status"),
 };
 
 const state = createEditorState();
 
 const history = createHistory();
+let editRevision = 0;
+let renderedLayout = null;
+let nextBusyId = 0;
+const busyOperations = new Map();
+
+function updateBusyState() {
+  state.busy = busyOperations.size > 0;
+  els.body.classList.toggle("is-busy", state.busy);
+  els.workspace.inert = state.busy;
+  els.toolbar.inert = state.busy;
+  document.querySelectorAll(".text-insert-options, .shape-menu, .edit-tool-menu").forEach((menu) => {
+    menu.inert = state.busy;
+  });
+  els.operationStatus.hidden = !state.busy;
+  els.operationStatus.textContent = state.busy ? [...busyOperations.values()].at(-1) : "";
+  els.download.disabled = state.busy || !state.pages.length;
+  $("save-changes").disabled = state.busy || !state.pages.length;
+}
+
+function beginBusy(message) {
+  const id = ++nextBusyId;
+  busyOperations.set(id, message);
+  updateBusyState();
+  return () => {
+    busyOperations.delete(id);
+    updateBusyState();
+  };
+}
+
+function pruneResources() {
+  const retainedPageIds = new Set(state.pages.map((page) => page.id));
+  const retainedSourceIds = new Set(state.pages.map((page) => page.sourceId).filter(Boolean));
+  for (const id of history.getReferencedPageIds()) retainedPageIds.add(id);
+  for (const id of history.getReferencedSourceIds()) retainedSourceIds.add(id);
+
+  for (const cache of [thumbCache, viewCache]) {
+    for (const [key, canvas] of cache) {
+      const pageId = key.slice(0, key.indexOf(":"));
+      if (!retainedPageIds.has(pageId)) {
+        cache.delete(key);
+        releaseCanvas(canvas);
+        renderErrors.delete(pageId);
+      }
+    }
+  }
+
+  for (const [id, source] of state.sources) {
+    if (retainedSourceIds.has(id)) continue;
+    state.sources.delete(id);
+    source.bitmap?.close();
+    try {
+      source.destroy?.()?.catch((error) => console.error("PDF cleanup failed", error));
+    } catch (error) {
+      console.error("PDF cleanup failed", error);
+    }
+    renderErrors.delete(id);
+  }
+}
 
 /* ---------- Render queue (keeps the main thread smooth) ---------- */
 const queue = [];
@@ -112,7 +172,17 @@ function pump() {
 /* ---------- Canvas caches ---------- */
 const thumbCache = new Map();
 const viewCache = new Map();
+const THUMB_CACHE_LIMIT = 100;
 const VIEW_CACHE_LIMIT = 40;
+const renderControllers = new WeakMap();
+const renderErrors = new Set();
+
+function releaseCanvas(canvas) {
+  renderControllers.get(canvas)?.abort();
+  canvas.width = 0;
+  canvas.height = 0;
+  canvas.remove();
+}
 
 function cachedCanvas(cache, key, page, scale, priority, limit) {
   if (cache.has(key)) {
@@ -124,14 +194,35 @@ function cachedCanvas(cache, key, page, scale, priority, limit) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   const source = state.sources.get(page.sourceId);
+  const controller = new AbortController();
+  renderControllers.set(canvas, controller);
   canvas.dataset.pending = "true";
+  cache.set(key, canvas);
+  while (limit && cache.size > limit) {
+    const [oldKey, oldCanvas] = cache.entries().next().value;
+    cache.delete(oldKey);
+    releaseCanvas(oldCanvas);
+  }
   enqueue(async () => {
-    await renderToCanvas(page, source, canvas, scale);
+    if (controller.signal.aborted || cache.get(key) !== canvas) return;
+    await renderToCanvas(page, source, canvas, scale, { signal: controller.signal });
+    if (controller.signal.aborted || cache.get(key) !== canvas) {
+      releaseCanvas(canvas);
+      return;
+    }
     delete canvas.dataset.pending;
     canvas.dispatchEvent(new Event("rendered"));
-  }, priority).catch((err) => console.error("Render failed", err));
-  cache.set(key, canvas);
-  if (limit && cache.size > limit) cache.delete(cache.keys().next().value);
+  }, priority).catch((err) => {
+    if (controller.signal.aborted || err?.name === "RenderingCancelledException") return;
+    if (cache.get(key) === canvas) cache.delete(key);
+    releaseCanvas(canvas);
+    console.error("Render failed", err);
+    const errorKey = page.sourceId || page.id;
+    if (!renderErrors.has(errorKey)) {
+      renderErrors.add(errorKey);
+      toast("A page preview couldn't be rendered. Scroll away and back to retry.", { type: "error" });
+    }
+  });
   return canvas;
 }
 
@@ -139,22 +230,22 @@ function cachedCanvas(cache, key, page, scale, priority, limit) {
 const snapshot = () => ({
   pages: state.pages.map((page) => ({
     ...page,
-    annotations: (page.annotations || []).map((annotation) => ({
-      ...annotation,
-      points: annotation.points?.map((point) => ({ ...point })),
-    })),
+    annotations: structuredClone(page.annotations || []),
   })),
   selected: [...state.selected],
 });
 function restore(snap) {
   state.pages = snap.pages;
   state.selected = new Set(snap.selected.filter((id) => state.pages.some((p) => p.id === id)));
+  editRevision++;
+  renderedLayout = null;
 }
 
 function commit(mutate) {
   history.push(snapshot());
   mutate();
   state.dirty = true;
+  editRevision++;
   render();
 }
 
@@ -186,37 +277,64 @@ const {
 } = operations;
 
 /* ---------- Loading files ---------- */
-async function addFiles(files, insertAt = state.pages.length) {
-  if (!files.length) return;
-  setBusy(true);
+function addFiles(files, insertAt = null) {
+  if (!files.length) return Promise.resolve();
+  const finishBusy = beginBusy("Opening files…");
+  const run = () => processFiles(files, insertAt ?? state.pages.length);
+  const queued = fileLoadQueue.then(run, run);
+  fileLoadQueue = queued.catch((error) => {
+    console.error("Could not finish opening files", error);
+    toast("Couldn't finish opening the selected files. Please try again.", { type: "error" });
+  });
+  return fileLoadQueue.finally(finishBusy);
+}
+
+let fileLoadQueue = Promise.resolve();
+async function processFiles(files, insertAt) {
   const added = [];
   const wasEmpty = state.pages.length === 0;
-
   for (const file of files) {
     if (file.size > MAX_FILE_BYTES) {
       toast(`${file.name} is larger than ${formatBytes(MAX_FILE_BYTES)}.`, { type: "error" });
       continue;
     }
+    if (!isPdf(file) && !isImage(file)) {
+      toast(`${file.name} isn't a PDF, JPG or PNG.`, { type: "error" });
+      continue;
+    }
+    let openedPdf;
     try {
       const bytes = await readBytes(file);
       const sourceId = newId("s");
       if (isPdf(file)) {
-        const pdf = await openPdf(bytes);
-        const sizes = await readPdfPageSizes(pdf);
-        state.sources.set(sourceId, { kind: "pdf", bytes, pdf, name: file.name, size: file.size });
+        openedPdf = await openPdf(bytes);
+        const sizes = await readPdfPageSizes(openedPdf.pdf);
+        state.sources.set(sourceId, {
+          kind: "pdf",
+          bytes,
+          pdf: openedPdf.pdf,
+          destroy: openedPdf.destroy,
+          name: file.name,
+          size: file.size,
+        });
+        openedPdf = null;
         sizes.forEach((s, index) =>
           added.push({ id: newId(), kind: "pdf", sourceId, index, rotation: 0, width: s.width, height: s.height })
         );
-      } else if (isImage(file)) {
+      } else {
         const { bitmap, width, height } = await loadImage(bytes, file.type);
         state.sources.set(sourceId, { kind: "image", bytes, bitmap, type: file.type, name: file.name, size: file.size });
         added.push({ id: newId(), kind: "image", sourceId, index: 0, rotation: 0, ...imagePageSize(width, height) });
-      } else {
-        toast(`${file.name} isn't a PDF, JPG or PNG.`, { type: "error" });
-        continue;
       }
       if (wasEmpty && state.name === "document") state.name = baseName(file.name);
     } catch (err) {
+      if (openedPdf) {
+        try {
+          openedPdf.destroy()?.catch((error) => console.error("PDF cleanup failed", error));
+        } catch (error) {
+          console.error("PDF cleanup failed", error);
+        }
+      }
       if (err instanceof PasswordProtectedError) {
         toast(`${file.name} is password protected. Unlocking is coming soon.`, { type: "error" });
       } else {
@@ -226,7 +344,6 @@ async function addFiles(files, insertAt = state.pages.length) {
     }
   }
 
-  setBusy(false);
   if (!added.length) return;
   markNetworkBaseline();
   commit(() => {
@@ -237,15 +354,24 @@ async function addFiles(files, insertAt = state.pages.length) {
   toast(`Added ${added.length} page${added.length === 1 ? "" : "s"}. Nothing was uploaded.`);
 }
 
+let filePickerOpen = false;
 async function chooseFiles() {
-  const files = await pickFiles();
-  if (files.length) addFiles(files, insertionIndex());
+  if (state.busy || filePickerOpen) return;
+  filePickerOpen = true;
+  try {
+    const files = await pickFiles();
+    if (files.length) await addFiles(files, insertionIndex());
+  } finally {
+    filePickerOpen = false;
+  }
 }
 
 const { fileName, downloadAll, saveSession, extractSelected } = createExportActions({
   state,
   els,
-  setBusy,
+  beginBusy,
+  snapshotPages: () => snapshot().pages,
+  getRevision: () => editRevision,
   selectedPages,
   toast,
   formatBytes,
@@ -258,17 +384,102 @@ const selectFromEvent = (id, event) =>
 
 /* ---------- Rendering ---------- */
 function render() {
-  renderThumbs();
-  renderViewer();
+  const layout = pageLayoutKey();
+  if (layout !== renderedLayout) {
+    renderedLayout = layout;
+    renderThumbs();
+    renderViewer();
+  } else {
+    renderAnnotationLayers();
+  }
+  renderThumbnailOverlays();
   renderChrome();
   renderSelection();
+  pruneResources();
+}
+
+function pageLayoutKey() {
+  const scale = state.fit ? computeScale() : state.zoom;
+  return JSON.stringify([
+    scale.toFixed(3),
+    ...state.pages.map(({ id, sourceId, index, kind, rotation, width, height }) =>
+      [id, sourceId, index, kind, rotation, width, height]
+    ),
+  ]);
+}
+
+function renderAnnotationLayers() {
+  const pagesById = new Map(state.pages.map((page) => [page.id, page]));
+  for (const el of els.pages.children) {
+    const page = pagesById.get(el.dataset.id);
+    const layer = el.querySelector(".page-annotation-layer");
+    if (page && layer) annotationEditor?.renderLayer(layer, page);
+  }
+}
+
+let thumbObserver;
+const thumbnailOverlayStates = new WeakMap();
+function renderThumbnailOverlay(frame, page, force = false) {
+  const canvas = frame.querySelector("canvas");
+  if (!canvas || !annotationEditor) return;
+
+  let layer = frame.querySelector(".page-annotation-layer");
+  const needsRender = !layer;
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "page-annotation-layer";
+    frame.appendChild(layer);
+  }
+
+  const { width, height } = rotatedSize(page);
+  const canvasWidth = canvas.clientWidth;
+  const canvasHeight = canvas.clientHeight;
+  if (!canvasWidth || !canvasHeight) return;
+  const scale = Math.min(canvasWidth / width, canvasHeight / height);
+  layer.style.width = `${canvasWidth}px`;
+  layer.style.height = `${canvasHeight}px`;
+
+  const previous = thumbnailOverlayStates.get(frame);
+  if (
+    !force &&
+    !needsRender &&
+    previous?.annotations === page.annotations &&
+    previous.rotation === page.rotation &&
+    previous.width === canvasWidth &&
+    previous.height === canvasHeight
+  ) return;
+
+  annotationEditor.renderLayer(layer, page, { scale, staticPreview: true });
+  thumbnailOverlayStates.set(frame, {
+    annotations: page.annotations,
+    rotation: page.rotation,
+    width: canvasWidth,
+    height: canvasHeight,
+  });
+}
+
+function renderThumbnailOverlays() {
+  const pagesById = new Map(state.pages.map((page) => [page.id, page]));
+  for (const item of els.thumbs.children) {
+    const page = pagesById.get(item.dataset.id);
+    const frame = item.querySelector(".thumb-frame");
+    if (page && frame?.querySelector("canvas")) renderThumbnailOverlay(frame, page);
+  }
 }
 
 function renderThumbs() {
+  thumbObserver?.disconnect();
+  const existing = new Map([...els.thumbs.children].map((item) => [item.dataset.id, item]));
   const frag = document.createDocumentFragment();
   state.pages.forEach((page, i) => {
-    const li = document.createElement("li");
-    li.className = "thumb";
+    let li = existing.get(page.id);
+    if (!li) {
+      li = document.createElement("li");
+      li.className = "thumb";
+      li.append(document.createElement("div"), document.createElement("div"));
+      li.children[0].className = "thumb-frame";
+      li.children[1].className = "thumb-meta";
+    }
     li.dataset.id = page.id;
     li.id = `thumb-${page.id}`;
     li.setAttribute("role", "option");
@@ -276,16 +487,20 @@ function renderThumbs() {
 
     const { width, height } = rotatedSize(page);
     const scale = Math.min(170 / width, 150 / height);
-    const frame = document.createElement("div");
-    frame.className = "thumb-frame";
-    const canvas = cachedCanvas(thumbCache, `${page.id}:${page.rotation}`, page, scale, false);
-    canvas.style.width = `${width * scale}px`;
-    canvas.style.height = `${height * scale}px`;
-    frame.appendChild(canvas);
+    const frame = li.querySelector(".thumb-frame");
+    const key = `${page.id}:${page.rotation}`;
+    if (frame.dataset.renderKey !== key) {
+      frame.dataset.renderKey = key;
+      const skeleton = document.createElement("div");
+      skeleton.className = "thumb-skeleton";
+      skeleton.style.width = `${width * scale}px`;
+      skeleton.style.height = `${height * scale}px`;
+      skeleton.setAttribute("aria-hidden", "true");
+      frame.replaceChildren(skeleton);
+    }
 
-    const meta = document.createElement("div");
-    meta.className = "thumb-meta";
-    meta.textContent = String(i + 1);
+    const meta = li.querySelector(".thumb-meta");
+    meta.replaceChildren(document.createTextNode(String(i + 1)));
     const tag = page.kind === "blank" ? "Blank" : page.kind === "image" ? "Image" : page.rotation ? `${page.rotation}°` : "";
     if (tag) {
       const t = document.createElement("span");
@@ -294,10 +509,37 @@ function renderThumbs() {
       meta.appendChild(t);
     }
     li.setAttribute("aria-label", `Page ${i + 1}${tag ? `, ${tag}` : ""}`);
-    li.append(frame, meta);
     frag.appendChild(li);
   });
   els.thumbs.replaceChildren(frag);
+  thumbObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const frame = entry.target;
+        if (frame.querySelector("canvas")) continue;
+        const pageId = frame.closest(".thumb")?.dataset.id;
+        const page = state.pages.find((item) => item.id === pageId);
+        if (!page) continue;
+        const { width, height } = rotatedSize(page);
+        const scale = Math.min(170 / width, 150 / height);
+        const canvas = cachedCanvas(
+          thumbCache,
+          `${page.id}:${page.rotation}`,
+          page,
+          scale,
+          false,
+          THUMB_CACHE_LIMIT
+        );
+        canvas.style.width = `${width * scale}px`;
+        canvas.style.height = `${height * scale}px`;
+        frame.replaceChildren(canvas);
+        renderThumbnailOverlay(frame, page);
+      }
+    },
+    { root: els.thumbs.parentElement, rootMargin: "320px 0px" }
+  );
+  els.thumbs.querySelectorAll(".thumb-frame").forEach((frame) => thumbObserver.observe(frame));
 }
 
 let viewObserver;
@@ -316,6 +558,7 @@ function renderViewer() {
   currentObserver?.disconnect();
   const scale = computeScale();
   state.zoom = scale;
+  renderedLayout = pageLayoutKey();
   const zoomKey = scale.toFixed(3);
 
   viewObserver = new IntersectionObserver(
@@ -440,12 +683,6 @@ function scrollToPage(id) {
   el?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function setBusy(busy) {
-  state.busy = busy;
-  els.body.classList.toggle("is-busy", busy);
-  els.download.disabled = busy || !state.pages.length;
-}
-
 function setZoom(z) {
   state.fit = false;
   state.zoom = Math.max(0.25, Math.min(4, z));
@@ -458,8 +695,14 @@ annotationEditor = createAnnotationEditor({
   state,
   commit,
   render,
+  renderThumbnail: (page) => {
+    const item = [...els.thumbs.children].find((thumbnail) => thumbnail.dataset.id === page.id);
+    const frame = item?.querySelector(".thumb-frame");
+    if (frame) renderThumbnailOverlay(frame, page, true);
+  },
   toast,
   els,
+  beginBusy,
 });
 
 /* ---------- Network counter (proof of privacy) ---------- */
@@ -525,11 +768,36 @@ new ResizeObserver(() => {
 }).observe(els.viewer);
 
 window.addEventListener("beforeunload", (e) => {
-  if (state.dirty && state.pages.length) e.preventDefault();
+  if (state.busy || (state.dirty && state.pages.length)) e.preventDefault();
+});
+
+window.addEventListener("pagehide", (event) => {
+  if (event.persisted) return;
+  thumbObserver?.disconnect();
+  viewObserver?.disconnect();
+  currentObserver?.disconnect();
+  for (const cache of [thumbCache, viewCache]) {
+    for (const canvas of cache.values()) releaseCanvas(canvas);
+    cache.clear();
+  }
+  for (const source of state.sources.values()) {
+    source.bitmap?.close();
+    try {
+      source.destroy?.()?.catch((error) => console.error("PDF cleanup failed", error));
+    } catch (error) {
+      console.error("PDF cleanup failed", error);
+    }
+  }
+  state.sources.clear();
 });
 
 /* ---------- Boot ---------- */
 render();
 takeFiles().then((files) => {
   if (files.length) addFiles(files);
+}).catch((error) => {
+  console.error("Could not retrieve the local file handoff", error);
+  toast("Couldn't retrieve the files from the previous page. Use Add files to choose them again.", {
+    type: "error",
+  });
 });

@@ -17,8 +17,13 @@ export async function openPdf(bytes) {
     wasmUrl: "/vendor/pdfjs/wasm/",
   });
   try {
-    return await task.promise;
+    return { pdf: await task.promise, destroy: () => task.destroy() };
   } catch (err) {
+    try {
+      await task.destroy();
+    } catch (cleanupError) {
+      console.error("PDF loading cleanup failed", cleanupError);
+    }
     if (err?.name === "PasswordException") throw new PasswordProtectedError("Password protected");
     throw err;
   }
@@ -44,11 +49,9 @@ export function rotatedSize(page) {
   return turned ? { width: page.height, height: page.width } : { width: page.width, height: page.height };
 }
 
-/**
- * Draws a page model onto a canvas at the given scale (CSS px per PDF point).
- * Returns the render task's promise so callers can cancel on teardown.
- */
-export async function renderToCanvas(page, source, canvas, scale) {
+/** Draws a page model at the given scale and cancels PDF.js work when aborted. */
+export async function renderToCanvas(page, source, canvas, scale, { signal } = {}) {
+  if (signal?.aborted) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const { width, height } = rotatedSize(page);
   canvas.width = Math.max(1, Math.floor(width * scale * dpr));
@@ -58,11 +61,23 @@ export async function renderToCanvas(page, source, canvas, scale) {
 
   if (page.kind === "pdf") {
     const pdfPage = await getPdfPage(source, page.index);
+    if (signal?.aborted) return;
     const viewport = pdfPage.getViewport({
       scale: scale * dpr,
       rotation: (pdfPage.rotate + page.rotation) % 360,
     });
-    await pdfPage.render({ canvas, canvasContext: ctx, viewport, background: "#ffffff" }).promise;
+    const task = pdfPage.render({ canvas, canvasContext: ctx, viewport, background: "#ffffff" });
+    const cancel = () => task.cancel();
+    if (signal?.aborted) {
+      cancel();
+    } else {
+      signal?.addEventListener("abort", cancel, { once: true });
+    }
+    try {
+      await task.promise;
+    } finally {
+      signal?.removeEventListener("abort", cancel);
+    }
     return;
   }
 
@@ -468,8 +483,12 @@ function encodeMappedText(text, info, bytesPerCode) {
 }
 
 function encodePdfLiteral(text) {
-  if (!/^[\x20-\x7e]*$/.test(text)) {
-    throw new Error("In-place text editing currently supports basic printable ASCII characters only.");
+  const unsupported = [...new Set([...text].filter((character) => !/^[\x20-\x7e]$/.test(character)))];
+  if (unsupported.length) {
+    const characters = unsupported.map((character) => JSON.stringify(character)).join(", ");
+    throw new Error(
+      `In-place PDF text replacement supports printable ASCII only. Unsupported characters: ${characters}. Replace them with printable ASCII characters.`
+    );
   }
   const bytes = [40];
   for (const character of text) {
@@ -538,6 +557,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       fontCache.set(fontName, null);
       return null;
     }
+
     const subtype = font.get(PDFName.of("Subtype"))?.toString();
     const info =
       subtype === "/Type0"
@@ -863,6 +883,28 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
   }
   output.set(bytes.subarray(sourceOffset), outputOffset);
   page.node.set(PDFName.Contents, document.context.register(document.context.flateStream(output)));
+}
+
+export async function validateTextEdit(page, sources, annotationId) {
+  const annotation = page.annotations?.find(
+    (item) => item.id === annotationId && item.type === "text-edit"
+  );
+  if (!annotation) return;
+  const source = sources.get(page.sourceId);
+  if (source?.kind !== "pdf") {
+    throw new Error("The original PDF for this text edit is no longer available.");
+  }
+  const document = await PDFDocument.load(source.bytes, {
+    ignoreEncryption: true,
+    updateMetadata: false,
+  });
+  const sourcePage = document.getPage(page.index);
+  await applyTextEdits(
+    document,
+    sourcePage,
+    { ...page, annotations: [annotation] },
+    sourcePage.getRotation().angle
+  );
 }
 
 function pdfShapeDashArray(style, width) {

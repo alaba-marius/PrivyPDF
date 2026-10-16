@@ -23,6 +23,19 @@ export function createHistory(limit = 100) {
     get canRedo() {
       return future.length > 0;
     },
+    getReferencedPageIds() {
+      return new Set(
+        [...past, ...future].flatMap((snapshot) => snapshot.pages.map((page) => page.id))
+      );
+    },
+    getReferencedSourceIds() {
+      return new Set(
+        [...past, ...future]
+          .flatMap((snapshot) => snapshot.pages)
+          .map((page) => page.sourceId)
+          .filter(Boolean)
+      );
+    },
   };
 }
 

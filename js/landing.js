@@ -12,8 +12,13 @@ async function openInEditor(files) {
     toast("Please choose a PDF, JPG or PNG file.", { type: "error" });
     return;
   }
-  await stashFiles(supported);
-  window.location.href = "/editor.html";
+  try {
+    await stashFiles(supported);
+    window.location.href = "/editor.html";
+  } catch (error) {
+    console.error("Could not hand files to the editor", error);
+    toast("Couldn't open the editor with these files. Please try again.", { type: "error" });
+  }
 }
 
 if (drop) {

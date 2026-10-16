@@ -1,7 +1,9 @@
 export function createExportActions({
   state,
   els,
-  setBusy,
+  beginBusy,
+  snapshotPages,
+  getRevision,
   selectedPages,
   toast,
   formatBytes,
@@ -15,23 +17,43 @@ export function createExportActions({
 
   async function exportPages(pages, name) {
     if (!pages.length || state.busy) return;
-    setBusy(true);
+    const invalidEdit = pages
+      .flatMap((page) => page.annotations || [])
+      .find((annotation) => annotation.type === "text-edit" && annotation.validationError);
+    if (invalidEdit) {
+      toast(
+        `Fix the in-place PDF text edit before exporting: ${invalidEdit.validationError}`,
+        { type: "error" }
+      );
+      return;
+    }
+    const revision = getRevision();
+    const pageIds = new Set(pages.map((page) => page.id));
+    const stablePages = snapshotPages().filter((page) => pageIds.has(page.id));
+    if (!stablePages.length) return;
+    const finishBusy = beginBusy("Building PDF…");
     try {
-      const bytes = await exportPdf(pages, state.sources, { title: name.replace(/\.pdf$/, "") });
+      const bytes = await exportPdf(stablePages, state.sources, { title: name.replace(/\.pdf$/, "") });
       downloadBytes(bytes, name);
-      toast(`Downloaded ${name} (${formatBytes(bytes.byteLength)}), built on your device.`);
+      const changedDuringExport = revision !== getRevision();
+      toast(
+        changedDuringExport
+          ? `Generated ${name} (${formatBytes(bytes.byteLength)}) and requested a browser download. New edits remain unsaved.`
+          : `Generated ${name} (${formatBytes(bytes.byteLength)}) and requested a browser download on your device.`
+      );
       return true;
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : "The PDF uses unsupported features.";
       toast(`Export failed: ${message}`, { type: "error" });
     } finally {
-      setBusy(false);
+      finishBusy();
     }
   }
 
   async function downloadAll() {
-    if (await exportPages(state.pages, fileName())) state.dirty = false;
+    const revision = getRevision();
+    if (await exportPages(state.pages, fileName()) && revision === getRevision()) state.dirty = false;
   }
 
   function saveSession() {

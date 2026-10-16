@@ -59,6 +59,12 @@ export function createPdfOperations({
         pages.push(page);
         if (state.selected.has(page.id)) {
           const copy = { ...page, id: newId() };
+          if (page.annotations) {
+            copy.annotations = structuredClone(page.annotations).map((annotation) => ({
+              ...annotation,
+              id: newId(),
+            }));
+          }
           pages.push(copy);
           fresh.add(copy.id);
         }
