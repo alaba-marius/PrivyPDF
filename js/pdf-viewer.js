@@ -754,7 +754,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
     } else if (operatorName === "g" || operatorName === "rg" || operatorName === "k") {
       const componentCount = operatorName === "g" ? 1 : operatorName === "rg" ? 3 : 4;
       const components = tokens
-        .slice(index - componentCount, index)
+        .slice(index - componentCount + 1, index + 1)
         .map((token) => tokenNumber(token, bytes));
       fillColorCommand = components.length === componentCount &&
         components.every(Number.isFinite)
