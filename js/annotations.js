@@ -4116,7 +4116,7 @@ export function createAnnotationEditor({
         const selectedBox = item.tableCell
           ? item.tableCell.textBox || item.box
           : item.box;
-        const fontSize = Math.max(8, selectedBox.h * page.height * scale);
+        const fontSize = Math.max(8, (selectedBox.h * page.height * scale) / 1.25);
         span.className = "pdf-text-item";
         span.textContent = item.str;
         span.dataset.textTargetId = item.textTargetId;
@@ -4126,6 +4126,11 @@ export function createAnnotationEditor({
         span.style.width = `${Math.max(selectedBox.w, 0.005) * 100}%`;
         span.style.height = `${Math.max(selectedBox.h, 0.008) * 100}%`;
         span.style.fontSize = `${fontSize}px`;
+        span.style.fontFamily = editorFontFamily(
+          resolveFontFamily(item.fontStyle, item.fontMetadata)
+        );
+        span.style.fontWeight = item.fontMetadata?.bold ? "bold" : "normal";
+        span.style.fontStyle = item.fontMetadata?.italic ? "italic" : "normal";
         span.dataset.pdfTextIndex = String(itemIndex);
         span.addEventListener("pointerdown", (event) => {
           if (state.annotationTool !== "select" || event.button !== 0) return;
