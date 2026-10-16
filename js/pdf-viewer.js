@@ -1006,9 +1006,22 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         const part = showStrings[index];
         if (!isStandaloneShow(part)) break;
         const partText = decodeText(part);
-        if (!partText || !edit.originalText.startsWith(text + partText)) break;
+        if (!partText) break;
+        const visiblePartText = partText.replace(/ +$/, "");
+        const omittedTrailingPadding =
+          visiblePartText.length > 0 &&
+          visiblePartText !== partText &&
+          part.bytes.length === partText.length &&
+          !(part.tjAdjustment || 0) &&
+          text + visiblePartText === edit.originalText;
+        const matchedPartText = omittedTrailingPadding ? visiblePartText : partText;
+        if (!edit.originalText.startsWith(text + matchedPartText)) break;
         const position = showPosition(part);
-        const advance = sourceAdvanceFor(part);
+        const advance = sourceAdvanceFor(
+          omittedTrailingPadding
+            ? { ...part, bytes: part.bytes.slice(0, visiblePartText.length), tjAdjustment: 0 }
+            : part
+        );
         if (!position || advance === null) break;
         if (previous) {
           const prior = previous.part;
@@ -1031,7 +1044,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
           ) break;
         }
         parts.push(part);
-        text += partText;
+        text += matchedPartText;
         measuredWidth += advance;
         previous = { part, position, advance };
         if (text === edit.originalText && parts.length > 1) {
@@ -1215,14 +1228,17 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       : textWidth(edit.originalText) - (target.tjAdjustment || 0) * target.fontSize / 1000;
     const replacementWidth = textWidth(edit.text);
     let replacementFontName = target.fontName;
-    const missingWidthCodes = new Set(
-      [...edit.text]
-        .map((character) => character.charCodeAt(0))
-        .filter((code) => {
-          const width = widthTable[code - firstChar];
-          return (!Number.isFinite(width) || width <= 0) && embeddedWidths?.has(code);
-        })
-    );
+    const missingWidthCodes =
+      !isComposite && widthTable && Number.isFinite(firstChar) && embeddedWidths
+        ? new Set(
+            [...edit.text]
+              .map((character) => character.charCodeAt(0))
+              .filter((code) => {
+                const width = widthTable[code - firstChar];
+                return (!Number.isFinite(width) || width <= 0) && embeddedWidths.has(code);
+              })
+          )
+        : new Set();
     if (missingWidthCodes.size) {
       const updatedFont = font.clone(document.context);
       const updatedWidths = widths.clone(document.context);
