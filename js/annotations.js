@@ -1,5 +1,6 @@
 import * as pdfjs from "/vendor/pdfjs/pdf.min.js";
 import { icon } from "./icons.js";
+import { validateTextEdit } from "./pdf-viewer.js";
 
 export function selectFromEvent(state, id, event, indexOf, renderSelection) {
   if (event.shiftKey && state.anchorId) {
@@ -472,13 +473,22 @@ function assignItemsToGridCells(items, gridCells) {
   return cells;
 }
 
-export function createAnnotationEditor({ state, commit, render, toast, els }) {
+export function createAnnotationEditor({
+  state,
+  commit,
+  render,
+  renderThumbnail,
+  toast,
+  els,
+  beginBusy,
+}) {
   let pointer = null;
   let livePath = null;
   let liveShape = null;
   let objectDrag = null;
   let svgDrag = null;
   let pageDrag = null;
+  let suppressBackgroundClick = false;
   let suppressObjectClick = false;
   let suppressPdfTextClick = false;
   let suppressPdfTextClickTimer = null;
@@ -679,7 +689,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
   }
 
   function focusEditable(annotationId, className, attempt = 0) {
-    const editable = document.querySelector(
+    const editable = els.pages.querySelector(
       `[data-annotation-id="${annotationId}"] .${className}`
     );
     if (editable) {
@@ -693,7 +703,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
   }
 
   function focusEditableAtPoint(annotationId, className, point, attempt = 0) {
-    const editable = document.querySelector(
+    const editable = els.pages.querySelector(
       `[data-annotation-id="${annotationId}"] .${className}`
     );
     if (!editable) {
@@ -749,14 +759,14 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
     selection.addRange(range);
   }
 
-  function fitCellText(input, annotation, box, page) {
+  function fitCellText(input, annotation, box, page, scale = state.zoom) {
     const measure = document.createElement("canvas").getContext("2d");
     if (!measure) return;
     const rotated = page.rotation % 180 !== 0;
     const pageWidth = rotated ? page.height : page.width;
-    measure.font = `${annotation.fontStyle || "normal"} ${annotation.fontWeight || "normal"} ${Math.max(6, (annotation.fontSize || 9) * state.zoom)}px ${editorFontFamily(annotation.fontFamily)}`;
+    measure.font = `${annotation.fontStyle || "normal"} ${annotation.fontWeight || "normal"} ${Math.max(6, (annotation.fontSize || 9) * scale)}px ${editorFontFamily(annotation.fontFamily)}`;
     const contentWidth = measure.measureText(annotation.text || "").width;
-    const availableWidth = Math.max(1, box.w * pageWidth * state.zoom - 4);
+    const availableWidth = Math.max(1, box.w * pageWidth * scale - 4);
     input.style.transform = `scaleX(${contentWidth > availableWidth ? availableWidth / contentWidth : 1})`;
   }
 
@@ -1509,7 +1519,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
     const shapeToggle = document.getElementById("shape-menu-toggle");
     shapeToggle.classList.toggle("is-active", shapeActive);
     shapeToggle.setAttribute("aria-pressed", String(shapeActive));
-    document.querySelectorAll(".annotation-text-input").forEach((input) => {
+    els.pages.querySelectorAll(".annotation-text-input").forEach((input) => {
       input.contentEditable = String(
         tool === "text" ||
           ((tool === "select" || tool === "text") &&
@@ -1518,7 +1528,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
               state.textSelection?.annotationId === input.closest("[data-annotation-id]")?.dataset.annotationId))
       );
     });
-    document.querySelectorAll(".annotation-inline-edit-text").forEach((input) => {
+    els.pages.querySelectorAll(".annotation-inline-edit-text").forEach((input) => {
       input.contentEditable = String(
         tool === "select" && document.activeElement === input
       );
@@ -1530,7 +1540,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         : tool === "eraser"
           ? "Click an annotation to erase it."
           : tool === "select"
-            ? "Dashed outlines show detected PDF text. Click text to edit it or drag it to move it; drag other elements or their handles to move or resize them."
+            ? "Dashed outlines show detected PDF text. Click a run to edit it; select words in the inline editor. Drag here to select; Alt-drag moves the complete run."
             : tool === "drag"
               ? "Drag the page to move around it, or drag an element to move it."
             : tool === "draw"
@@ -1661,8 +1671,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
 
   function addAnnotation(page, annotation) {
     commit(() => {
-      page.annotations ||= [];
-      page.annotations.push(annotation);
+      page.annotations = [...(page.annotations || []), annotation];
       state.textSelection =
         annotation.type === "highlight"
           ? null
@@ -1707,8 +1716,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
     });
     if (!annotations.length) return;
     commit(() => {
-      page.annotations ||= [];
-      page.annotations.push(...annotations);
+      page.annotations = [...(page.annotations || []), ...annotations];
       state.textSelection = null;
     });
     renderInspector();
@@ -2218,6 +2226,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
   }
 
   function handleSvgAnnotationClick(event, page, annotation, layer) {
+    if (event.target === event.currentTarget) return;
     event.preventDefault();
     event.stopPropagation();
     if (suppressObjectClick) {
@@ -2413,7 +2422,9 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
   document.addEventListener("pointerup", finishSvgDrag);
   document.addEventListener("pointercancel", finishSvgDrag);
 
-  function renderLayer(layer, page) {
+  function renderLayer(layer, page, { scale = state.zoom, staticPreview = false } = {}) {
+    layer.inert = staticPreview;
+    layer.setAttribute("aria-hidden", String(staticPreview));
     layer.replaceChildren();
     for (const annotation of page.annotations || []) {
       if (annotation.type === "shape" && annotation.shape === "polyline" && annotation.points?.length) {
@@ -2573,7 +2584,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           mark.classList.add("annotation-shape", `annotation-shape-${annotation.shape}`);
           const strokeColor = annotation.color || "#171717";
           mark.style.borderColor = colorAtOpacity(strokeColor, annotation.opacity ?? 1);
-          mark.style.borderWidth = `${Math.max(1, annotation.width || 1) * state.zoom}px`;
+          mark.style.borderWidth = `${Math.max(1, annotation.width || 1) * scale}px`;
           mark.style.borderStyle = annotation.strokeStyle === "dashed" || annotation.strokeStyle === "long-dash"
             ? "dashed"
             : annotation.strokeStyle === "dotted" || annotation.strokeStyle === "wavy"
@@ -2657,7 +2668,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
             : annotation.fontFamily === "Courier"
               ? "Courier, monospace"
               : "Arial, Helvetica, sans-serif";
-          mark.style.fontSize = `${Math.max(6, (annotation.fontSize || 12) * state.zoom)}px`;
+          mark.style.fontSize = `${Math.max(6, (annotation.fontSize || 12) * scale)}px`;
           mark.style.fontWeight = annotation.fontWeight || "normal";
           mark.style.fontStyle = annotation.fontStyle || "normal";
           mark.style.backgroundColor = annotation.fill || "transparent";
@@ -2681,12 +2692,12 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           const textContent = document.createElement("span");
           textContent.className = "annotation-text-input";
           textContent.contentEditable = String(
-            state.annotationTool === "text" ||
+            !staticPreview && (state.annotationTool === "text" ||
               (state.annotationTool === "form-label" && annotation.formLabel) ||
               ((state.annotationTool === "select" || state.annotationTool === "text") &&
                 (annotation.cellText ||
                   annotation.directEdit ||
-                  state.textSelection?.annotationId === annotation.id))
+                  state.textSelection?.annotationId === annotation.id)))
           );
           textContent.dataset.directEdit = String(Boolean(annotation.directEdit));
           textContent.dataset.cellText = String(Boolean(annotation.cellText));
@@ -2698,15 +2709,15 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           if (annotation.autoFit && !annotation.cellText) {
             const measure = document.createElement("canvas").getContext("2d");
             if (measure) {
-              const fontSize = Math.max(6, (annotation.fontSize || 12) * state.zoom);
+              const fontSize = Math.max(6, (annotation.fontSize || 12) * scale);
               measure.font = `${annotation.fontStyle || "normal"} ${annotation.fontWeight || "normal"} ${fontSize}px ${mark.style.fontFamily}`;
               const contentWidth = measure.measureText(annotation.text || "").width;
-              const availableWidth = Math.max(1, box.w * page.width * state.zoom - 4);
+              const availableWidth = Math.max(1, box.w * page.width * scale - 4);
               mark.style.fontSize = `${Math.max(6, fontSize * Math.min(1, availableWidth / Math.max(1, contentWidth)))}px`;
             }
           }
           if (annotation.cellText) {
-            mark.style.fontSize = `${Math.max(6, (annotation.fontSize || 9) * state.zoom)}px`;
+            mark.style.fontSize = `${Math.max(6, (annotation.fontSize || 9) * scale)}px`;
             mark.style.fontFamily = editorFontFamily(annotation.fontFamily);
             mark.style.fontWeight = annotation.fontWeight || "normal";
             mark.style.fontStyle = annotation.fontStyle || "normal";
@@ -2715,7 +2726,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           }
           mark.dataset.annotationId = annotation.id;
           mark.append(textContent);
-          if (annotation.cellText) fitCellText(textContent, annotation, box, page);
+          if (annotation.cellText) fitCellText(textContent, annotation, box, page, scale);
           let suppressTextBoxClick = false;
           textContent.addEventListener("focus", () => inlineEditBases.set(textContent, annotation.text));
           textContent.addEventListener("input", () => {
@@ -2758,7 +2769,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           mark.classList.add("annotation-replacement");
           mark.style.backgroundColor = annotation.fill || "#ffffff";
           mark.style.color = annotation.color || "#171717";
-          mark.style.fontSize = `${Math.max(8, (annotation.fontSize || 12) * state.zoom)}px`;
+          mark.style.fontSize = `${Math.max(8, (annotation.fontSize || 12) * scale)}px`;
           mark.style.textAlign = annotation.align || "left";
           mark.textContent = annotation.text;
         }
@@ -2768,7 +2779,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
             mark.style.backgroundColor = annotation.fill;
           }
           mark.style.color = annotation.textColor || annotation.color || "#171717";
-          mark.style.fontSize = `${Math.max(8, (annotation.fontSize || 12) * state.zoom)}px`;
+          mark.style.fontSize = `${Math.max(8, (annotation.fontSize || 12) * scale)}px`;
           mark.style.fontFamily = annotation.fontFamily || "Arial, sans-serif";
           mark.style.fontWeight = annotation.fontWeight || "normal";
           mark.style.fontStyle = annotation.fontStyle || "normal";
@@ -2780,11 +2791,15 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           textContent.setAttribute("aria-label", "Edit selected PDF text");
           textContent.setAttribute("spellcheck", "false");
           textContent.textContent = annotation.text;
+          if (!staticPreview && annotation.validationError) {
+            textContent.setAttribute("aria-invalid", "true");
+            textContent.title = annotation.validationError;
+          }
           textContent.style.font = `${mark.style.fontStyle} ${mark.style.fontWeight} ${mark.style.fontSize} ${mark.style.fontFamily}`;
           if (measure) {
             measure.font = textContent.style.font;
             const contentWidth = measure.measureText(annotation.text).width;
-            const availableWidth = Math.max(1, box.w * page.width * state.zoom);
+            const availableWidth = Math.max(1, box.w * page.width * scale);
             const widthScale = contentWidth > availableWidth ? availableWidth / contentWidth : 1;
             textContent.style.transform = `scaleX(${widthScale})`;
           }
@@ -2794,11 +2809,12 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           textContent.addEventListener("input", () => {
             annotation.text = textContent.textContent || "";
             if (state.textSelection?.annotationId === annotation.id) els.selectedText.value = annotation.text;
+            renderThumbnail(page);
             const measure = document.createElement("canvas").getContext("2d");
             if (measure) {
               measure.font = textContent.style.font;
               const contentWidth = measure.measureText(annotation.text).width;
-              const availableWidth = Math.max(1, box.w * page.width * state.zoom);
+              const availableWidth = Math.max(1, box.w * page.width * scale);
               textContent.style.transform = `scaleX(${contentWidth > availableWidth ? availableWidth / contentWidth : 1})`;
             }
           });
@@ -2807,7 +2823,20 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
             const editedText = textContent.textContent || "";
             if (originalText !== editedText) {
               annotation.text = originalText;
-              updateAnnotation(annotation, { text: editedText });
+              void textEditValidationError(page, { ...annotation, text: editedText }).then(
+                (validationError) => {
+                  updateAnnotation(annotation, {
+                    text: editedText,
+                    validationError,
+                  });
+                  if (validationError) {
+                    toast(
+                      `This in-place text edit cannot be exported yet: ${validationError}`,
+                      { type: "error" }
+                    );
+                  }
+                }
+              );
             }
           });
         }
@@ -2823,7 +2852,10 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           (annotation.type === "text" && annotation.formLabel)
         ) {
           mark.addEventListener("pointerdown", (event) => {
-            if (event.target.closest(".annotation-image-resize-handle")) return;
+            if (
+              event.target.closest(".annotation-image-resize-handle") ||
+              event.target.closest(".annotation-inline-edit-text")
+            ) return;
             if (!canManipulate() || event.button !== 0) return;
             event.preventDefault();
             event.stopPropagation();
@@ -2933,7 +2965,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           mark.addEventListener("pointerup", finishObjectDrag);
           mark.addEventListener("pointercancel", finishObjectDrag);
         }
-        if (
+        if (!staticPreview &&
           state.textSelection?.annotationId === annotation.id &&
           annotation.type !== "draw" &&
           !(annotation.type === "text" && annotation.cellText)
@@ -2943,7 +2975,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         const resizable = ["image", "shape", "attachment", "formField", "text-edit", "replace", "highlight"]
           .includes(annotation.type) ||
           (annotation.type === "text" && !annotation.cellText);
-        if (resizable &&
+        if (!staticPreview && resizable &&
             state.textSelection?.annotationId === annotation.id) {
           const aspectLocked = annotation.type === "image" ||
             (annotation.type === "formField" &&
@@ -3001,7 +3033,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
             mark.append(handle);
           }
         }
-        if (
+        if (!staticPreview &&
           annotation.type === "text" &&
           annotation.formLabel &&
           state.textSelection?.annotationId === annotation.id &&
@@ -3039,6 +3071,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           color.addEventListener("input", () => {
             mark.style.color = color.value;
             annotation.color = color.value;
+            renderThumbnail(page);
           });
           color.addEventListener("change", () => updateAnnotation(annotation, { color: color.value }));
           toolbar.append(color);
@@ -3065,6 +3098,13 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
             return;
           }
           event.stopPropagation();
+          if (
+            annotation.type === "text-edit" &&
+            event.target instanceof Element &&
+            event.target.closest(".annotation-inline-edit-text") === document.activeElement
+          ) {
+            return;
+          }
           if (annotation.type === "text" && annotation.cellText) {
             state.textSelection = {
               pageId: page.id,
@@ -3177,7 +3217,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         preview.style.width = `${box.w * 100}%`;
         preview.style.height = `${box.h * 100}%`;
         preview.style.borderColor = colorAtOpacity(style.color, style.opacity);
-        preview.style.borderWidth = `${Math.max(1, style.width) * state.zoom}px`;
+        preview.style.borderWidth = `${Math.max(1, style.width) * scale}px`;
         preview.style.borderStyle = style.strokeStyle === "dashed" || style.strokeStyle === "long-dash"
           ? "dashed"
           : style.strokeStyle === "dotted" || style.strokeStyle === "wavy"
@@ -3200,6 +3240,7 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         pointerId: event.pointerId,
         x: event.clientX,
         y: event.clientY,
+        moved: false,
         scrollLeft: viewer.scrollLeft,
         scrollTop: viewer.scrollTop,
       };
@@ -3208,13 +3249,23 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
     });
     container.addEventListener("pointermove", (event) => {
       if (!pageDrag || pageDrag.container !== container || pageDrag.pointerId !== event.pointerId) return;
-      viewer.scrollLeft = pageDrag.scrollLeft - (event.clientX - pageDrag.x);
-      viewer.scrollTop = pageDrag.scrollTop - (event.clientY - pageDrag.y);
+      const deltaX = event.clientX - pageDrag.x;
+      const deltaY = event.clientY - pageDrag.y;
+      if (Math.hypot(deltaX, deltaY) > 2) pageDrag.moved = true;
+      viewer.scrollLeft = pageDrag.scrollLeft - deltaX;
+      viewer.scrollTop = pageDrag.scrollTop - deltaY;
     });
     const finishPageDrag = (event) => {
       if (!pageDrag || pageDrag.container !== container || pageDrag.pointerId !== event.pointerId) return;
+      const moved = pageDrag.moved;
       pageDrag = null;
       container.classList.remove("is-panning");
+      if (moved) {
+        suppressBackgroundClick = true;
+        setTimeout(() => {
+          suppressBackgroundClick = false;
+        }, 0);
+      }
     };
     container.addEventListener("pointerup", finishPageDrag);
     container.addEventListener("pointercancel", finishPageDrag);
@@ -3306,6 +3357,75 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         textLayer.append(hitTarget);
       }
       let suppressMarkupClick = false;
+      let textDrag = null;
+      const finishTextDrag = (event) => {
+        const drag = textDrag;
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        textDrag = null;
+        drag.span.classList.remove("is-text-moving");
+        document.removeEventListener("pointerup", finishTextDrag);
+        document.removeEventListener("pointercancel", cancelTextDrag);
+
+        const deltaX = event.clientX - drag.x;
+        const deltaY = event.clientY - drag.y;
+        const selection = window.getSelection();
+        const selectedText = selection && !selection.isCollapsed
+          ? selection.toString().trim()
+          : "";
+        if (!drag.altKey && selectedText) {
+          if (selectedText !== drag.text.trim()) {
+            if (event.target instanceof Element && event.target.closest(".pdf-text-item")) {
+              suppressNextPdfTextClick();
+            }
+            toast("PDF replacement covers the whole run. Click it, then select a word in the inline editor.", {
+              type: "error",
+            });
+          }
+          return;
+        }
+        if (Math.hypot(deltaX, deltaY) <= 3) return;
+        if (state.pages.find((item) => item.id === page.id) !== page) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        const angle = (page.rotation * Math.PI) / 180;
+        const localDeltaX = Math.cos(angle) * deltaX + Math.sin(angle) * deltaY;
+        const localDeltaY = -Math.sin(angle) * deltaX + Math.cos(angle) * deltaY;
+        suppressNextPdfTextClick();
+        const offset = {
+          x: localDeltaX / Math.max(1, textLayer.clientWidth),
+          y: localDeltaY / Math.max(1, textLayer.clientHeight),
+        };
+        const appearance = sampleTextAppearance(container.querySelector("canvas"), drag.span);
+        const textBox = drag.item.tableCell
+          ? drag.item.tableCell.textBox || drag.item.tableCell
+          : drag.item.box;
+        state.textSelection = {
+          pageId: page.id,
+          kind: "text",
+          text: drag.item.tableCell?.text || drag.item.str,
+          occurrenceIndex: drag.item.occurrenceIndex,
+          fontSize: Math.max(6, (textBox.h * page.height * scale) / 1.25 / scale),
+          fontFamily: resolveFontFamily(drag.item.fontStyle, drag.item.fontMetadata),
+          fontWeight: drag.item.fontMetadata?.bold ? "bold" : "normal",
+          fontStyle: drag.item.fontMetadata?.italic ? "italic" : "normal",
+          fill: appearance?.fill,
+          textColor: appearance?.color,
+          x: textBox.x,
+          y: textBox.y,
+          w: textBox.w,
+          h: textBox.h,
+        };
+        renderInspector();
+        applyText(event, offset);
+      };
+      const cancelTextDrag = (event) => {
+        if (!textDrag || event.pointerId !== textDrag.pointerId) return;
+        textDrag.span.classList.remove("is-text-moving");
+        textDrag = null;
+        document.removeEventListener("pointerup", finishTextDrag);
+        document.removeEventListener("pointercancel", cancelTextDrag);
+      };
       textLayer.addEventListener("pointerup", () => {
         if (!textMarkupTools.has(state.annotationTool)) return;
         const selection = window.getSelection();
@@ -3336,65 +3456,25 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
         span.style.height = `${Math.max(selectedBox.h, 0.008) * 100}%`;
         span.style.fontSize = `${fontSize}px`;
         span.dataset.pdfTextIndex = String(itemIndex);
-        let textDrag = null;
         span.addEventListener("pointerdown", (event) => {
           if (state.annotationTool !== "select" || event.button !== 0) return;
           textDrag = {
             pointerId: event.pointerId,
             x: event.clientX,
             y: event.clientY,
+            altKey: event.altKey,
+            item,
+            span,
+            text: item.tableCell?.text || item.str,
           };
-          span.setPointerCapture(event.pointerId);
+          if (event.altKey) event.preventDefault();
+          document.addEventListener("pointerup", finishTextDrag);
+          document.addEventListener("pointercancel", cancelTextDrag);
         });
         span.addEventListener("pointermove", (event) => {
           if (!textDrag || event.pointerId !== textDrag.pointerId) return;
           const distance = Math.hypot(event.clientX - textDrag.x, event.clientY - textDrag.y);
           if (distance > 3) span.classList.add("is-text-moving");
-        });
-        span.addEventListener("pointerup", (event) => {
-          if (!textDrag || event.pointerId !== textDrag.pointerId) return;
-          const drag = textDrag;
-          textDrag = null;
-          span.classList.remove("is-text-moving");
-          const deltaX = event.clientX - drag.x;
-          const deltaY = event.clientY - drag.y;
-          if (Math.hypot(deltaX, deltaY) <= 3) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const angle = (page.rotation * Math.PI) / 180;
-          const localDeltaX = Math.cos(angle) * deltaX + Math.sin(angle) * deltaY;
-          const localDeltaY = -Math.sin(angle) * deltaX + Math.cos(angle) * deltaY;
-          suppressNextPdfTextClick();
-          const offset = {
-            x: localDeltaX / Math.max(1, textLayer.clientWidth),
-            y: localDeltaY / Math.max(1, textLayer.clientHeight),
-          };
-          const appearance = sampleTextAppearance(container.querySelector("canvas"), span);
-          const textBox = item.tableCell
-            ? item.tableCell.textBox || item.tableCell
-            : item.box;
-          state.textSelection = {
-            pageId: page.id,
-            kind: "text",
-            text: item.tableCell?.text || item.str,
-            occurrenceIndex: item.occurrenceIndex,
-            fontSize: Math.max(6, (textBox.h * page.height * scale) / 1.25 / scale),
-            fontFamily: resolveFontFamily(item.fontStyle, item.fontMetadata),
-            fontWeight: item.fontMetadata?.bold ? "bold" : "normal",
-            fontStyle: item.fontMetadata?.italic ? "italic" : "normal",
-            fill: appearance?.fill,
-            textColor: appearance?.color,
-            x: textBox.x,
-            y: textBox.y,
-            w: textBox.w,
-            h: textBox.h,
-          };
-          renderInspector();
-          applyText(event, offset);
-        });
-        span.addEventListener("pointercancel", () => {
-          textDrag = null;
-          span.classList.remove("is-text-moving");
         });
         span.addEventListener("click", (event) => {
           if (consumeSuppressedPdfTextClick(event)) return;
@@ -3650,7 +3730,28 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
     renderInspector();
   }
 
-  function applyText(event = null, moveOffset = null) {
+  async function textEditValidationError(page, annotation) {
+    const finishBusy = beginBusy("Checking in-place text edit…");
+    try {
+      const candidate = {
+        ...page,
+        annotations: [
+          ...(page.annotations || []).filter((item) => item.id !== annotation.id),
+          annotation,
+        ],
+      };
+      await validateTextEdit(candidate, state.sources, annotation.id);
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The in-place text edit could not be validated.";
+    } finally {
+      finishBusy();
+    }
+  }
+
+  async function applyText(event = null, moveOffset = null) {
     const selection = state.textSelection;
     const page = currentPage();
     const text = els.selectedText.value;
@@ -3712,6 +3813,8 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           ? { moveX: moveOffset.x, moveY: moveOffset.y }
           : {}),
       };
+      const validationError = await textEditValidationError(page, annotation);
+      if (validationError) annotation.validationError = validationError;
       addAnnotation(page, annotation);
       if (event && !moveOffset) {
         requestAnimationFrame(() =>
@@ -3725,11 +3828,15 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
           focusEditable(annotation.id, "annotation-inline-edit-text")
         );
       }
-      toast(
-        moveOffset
-          ? "Moved the selected PDF text. Download the PDF to keep the new position."
-          : "Type at the clicked position. The original line width is preserved."
-      );
+      if (validationError) {
+        toast(`This in-place text edit cannot be exported yet: ${validationError}`, { type: "error" });
+      } else {
+        toast(
+          moveOffset
+            ? "Moved the selected PDF text. Download the PDF to keep the new position."
+            : "Type at the clicked position. The original line width is preserved."
+        );
+      }
       return;
     }
     const annotation = activeAnnotation();
@@ -3738,9 +3845,45 @@ export function createAnnotationEditor({ state, commit, render, toast, els }) {
   }
 
   function clearSelection() {
+    const selection = state.textSelection;
     state.textSelection = null;
+    if (selection) {
+      const page = state.pages.find((item) => item.id === selection.pageId);
+      const pageElement = [...els.pages.children].find(
+        (element) => element.dataset.id === selection.pageId
+      );
+      pageElement?.querySelector(".page-text-layer .is-text-selected")?.classList.remove("is-text-selected");
+      const layer = pageElement?.querySelector(".page-annotation-layer");
+      if (page && layer) renderLayer(layer, page);
+    }
     renderInspector();
   }
+
+  els.viewer.addEventListener("click", (event) => {
+    if (
+      !state.textSelection ||
+      !["select", "drag"].includes(state.annotationTool) ||
+      event.defaultPrevented
+    ) return;
+    if (suppressBackgroundClick) {
+      suppressBackgroundClick = false;
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (
+      target.closest(
+        ".annotation-mark, .annotation-hit-line, .annotation-select-frame, .annotation-image-resize-handle, input, textarea, select, button, a, [contenteditable=\"true\"]"
+      ) ||
+      (state.annotationTool === "select" && target.closest(".pdf-text-item"))
+    ) return;
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      (activeElement.isContentEditable || activeElement.matches("input, textarea, select"))
+    ) return;
+    clearSelection();
+  });
 
   function updateSelectedText(patch) {
     const annotation = activeAnnotation();

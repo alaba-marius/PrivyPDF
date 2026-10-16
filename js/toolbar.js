@@ -308,6 +308,7 @@ export function setupToolbar({
   });
 
   document.addEventListener("keydown", (event) => {
+    if (state.busy) return;
     const typing = event.target.closest?.("input, textarea, [contenteditable]");
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();

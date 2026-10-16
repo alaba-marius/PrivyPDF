@@ -1721,14 +1721,23 @@ a.bento-card:hover {
     box-shadow: var(--shadow-lg);
   }
   .editor-body[data-editor-mode="edit"] .panel {
-    position: fixed;
-    z-index: 20;
-    inset: 118px 12px 12px auto;
+    position: relative;
+    grid-column: 2;
+    grid-row: 2;
     display: block;
-    width: min(380px, calc(100vw - 24px));
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
+    width: auto;
+    max-height: 35vh;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .editor-body[data-editor-mode="edit"] .workspace {
+    grid-template-rows: minmax(0, 1fr) minmax(160px, 35vh);
+    overflow-y: auto;
+  }
+  .editor-body[data-editor-mode="edit"] .thumbs-pane {
+    grid-row: 1 / span 2;
   }
 }
 
@@ -1754,6 +1763,20 @@ a.bento-card:hover {
   }
   .pane-head {
     display: none !important;
+  }
+  .editor-body[data-editor-mode="edit"] .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 150px minmax(180px, 1fr) minmax(160px, 35vh);
+  }
+  .editor-body[data-editor-mode="edit"] .thumbs-pane {
+    grid-row: 1;
+  }
+  .editor-body[data-editor-mode="edit"] .viewer {
+    grid-row: 2;
+  }
+  .editor-body[data-editor-mode="edit"] .panel {
+    grid-column: 1;
+    grid-row: 3;
   }
 }
 
@@ -1832,10 +1855,20 @@ a.bento-card:hover {
 }
 
 .thumb-frame {
+  position: relative;
   height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.thumb-frame .page-annotation-layer {
+  inset: auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .thumb-frame canvas,
@@ -1849,14 +1882,6 @@ a.bento-card:hover {
 
 .thumb-skeleton {
   background: linear-gradient(90deg, var(--bg-muted), #fafafa, var(--bg-muted));
-  background-size: 200% 100%;
-  animation: shimmer 1.2s linear infinite;
-}
-
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
 }
 
 .thumb-meta {
@@ -1957,8 +1982,8 @@ a.bento-card:hover {
 .editor-body[data-annotation-tool="select"] .pdf-text-item {
   outline: 1px dashed rgb(37 132 205 / 72%);
   outline-offset: 1px;
-  cursor: move;
-  user-select: none;
+  cursor: text;
+  user-select: text;
 }
 
 .editor-body[data-annotation-tool="select"] .pdf-text-item:hover,
@@ -2036,6 +2061,11 @@ a.bento-card:hover {
   padding: 1px 2px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.annotation-inline-edit-text[aria-invalid="true"] {
+  outline: 1px solid var(--danger);
+  outline-offset: 1px;
 }
 
 .annotation-text {
@@ -3874,4 +3904,10 @@ kbd {
 
 .is-busy {
   cursor: progress;
+}
+
+.operation-status {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }

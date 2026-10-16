@@ -93,24 +93,26 @@ function tx(db, mode, fn) {
     const result = fn(t.objectStore(STORE));
     t.oncomplete = () => resolve(result?.result);
     t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error("The local file handoff was interrupted."));
   });
 }
 
 export async function stashFiles(files) {
   const db = await openDb();
-  await tx(db, "readwrite", (s) => s.put(files, "pending"));
-  db.close();
-}
-
-export async function takeFiles() {
   try {
-    const db = await openDb();
-    const files = await tx(db, "readonly", (s) => s.get("pending"));
-    await tx(db, "readwrite", (s) => s.delete("pending"));
+    await tx(db, "readwrite", (s) => s.put(files, "pending"));
+  } finally {
     db.close();
-    return files || [];
-  } catch {
-    return [];
   }
 }
 
+export async function takeFiles() {
+  const db = await openDb();
+  try {
+    const files = await tx(db, "readonly", (s) => s.get("pending"));
+    await tx(db, "readwrite", (s) => s.delete("pending"));
+    return files || [];
+  } finally {
+    db.close();
+  }
+}
