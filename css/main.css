@@ -2453,6 +2453,97 @@ a.bento-card:hover {
   resize: vertical;
 }
 
+.pdf-text-properties {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+}
+
+.pdf-text-properties[hidden] {
+  display: none;
+}
+
+.pdf-text-properties h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pdf-text-properties .panel-muted {
+  margin-bottom: 0;
+  font-size: 12px;
+}
+
+.pdf-text-property-list {
+  margin-top: 12px;
+}
+
+.pdf-text-property-list div {
+  align-items: flex-start;
+}
+
+.pdf-text-property-list dd {
+  max-width: 58%;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.pdf-text-property-list div:first-child dd,
+.pdf-text-property-list div:nth-child(2) dd {
+  white-space: pre-wrap;
+}
+
+.pdf-text-range-controls {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-text-range-controls[hidden] {
+  display: none;
+}
+
+.pdf-text-range-controls h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pdf-text-range-controls .panel-muted {
+  margin: 0;
+  font-size: 12px;
+}
+
+.pdf-text-range-selection {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.pdf-text-range-toggle-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pdf-text-range-toggle-row button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pdf-range-color-field input {
+  width: 100%;
+  height: 36px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
 #selected-text-help {
   color: var(--muted);
   font-size: 12px;

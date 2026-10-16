@@ -231,22 +231,33 @@ const snapshot = () => ({
   pages: state.pages.map((page) => ({
     ...page,
     annotations: structuredClone(page.annotations || []),
+    formattingRanges: structuredClone(page.formattingRanges || []),
   })),
   selected: [...state.selected],
+  textRangeSelection: state.textRangeSelection
+    ? structuredClone(state.textRangeSelection)
+    : null,
 });
 function restore(snap) {
   state.pages = snap.pages;
   state.selected = new Set(snap.selected.filter((id) => state.pages.some((p) => p.id === id)));
+  state.textRangeSelection = snap.textRangeSelection
+    ? structuredClone(snap.textRangeSelection)
+    : null;
   editRevision++;
   renderedLayout = null;
 }
 
-function commit(mutate) {
+function commit(mutate, { render: shouldRender = true } = {}) {
   history.push(snapshot());
   mutate();
   state.dirty = true;
   editRevision++;
-  render();
+  if (shouldRender) render();
+  else {
+    renderChrome();
+    renderSelection();
+  }
 }
 
 const operations = createPdfOperations({

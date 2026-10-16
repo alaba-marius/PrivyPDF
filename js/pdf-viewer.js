@@ -1,6 +1,11 @@
 import * as pdfjs from "/vendor/pdfjs/pdf.min.js";
 import { PDFArray, PDFDocument, PDFName, PDFString, StandardFonts, degrees, rgb, decodePDFRawStream } from "/vendor/pdf-lib/pdf-lib.esm.min.js";
 import { isTextMarkAnnotation } from "./text-marks.js";
+import {
+  formattingTextSegments,
+  horizontalScaleForAdvance,
+  standardPdfFontKey,
+} from "./text-ranges.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.js";
 
@@ -692,6 +697,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
   let wordSpacing = 0;
   let textRenderingMode = 0;
   let textRise = 0;
+  let fillColorCommand = "0 g";
   let ctm = [1, 0, 0, 1, 0, 0];
   let textObject = null;
   const graphicsStateStack = [];
@@ -745,6 +751,17 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       textRenderingMode = tokenNumber(operand, bytes) ?? textRenderingMode;
     } else if (operatorName === "Ts") {
       textRise = tokenNumber(operand, bytes) ?? textRise;
+    } else if (operatorName === "g" || operatorName === "rg" || operatorName === "k") {
+      const componentCount = operatorName === "g" ? 1 : operatorName === "rg" ? 3 : 4;
+      const components = tokens
+        .slice(index - componentCount, index)
+        .map((token) => tokenNumber(token, bytes));
+      fillColorCommand = components.length === componentCount &&
+        components.every(Number.isFinite)
+        ? `${components.join(" ")} ${operatorName}`
+        : null;
+    } else if (operatorName === "cs" || operatorName === "sc" || operatorName === "scn") {
+      fillColorCommand = null;
     } else if (operatorName === "q") {
       graphicsStateStack.push({
         activeFontName,
@@ -754,6 +771,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         wordSpacing,
         textRenderingMode,
         textRise,
+        fillColorCommand,
         ctm: ctm.slice(),
       });
     } else if (operatorName === "Q") {
@@ -766,6 +784,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         wordSpacing = previous.wordSpacing;
         textRenderingMode = previous.textRenderingMode;
         textRise = previous.textRise;
+        fillColorCommand = previous.fillColorCommand;
         ctm = previous.ctm;
       }
     }
@@ -782,6 +801,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         wordSpacing,
         textRenderingMode,
         textRise,
+        fillColorCommand,
         textMatrix: textObject?.matrix?.slice() || null,
         ctm: ctm.slice(),
         textObject,
@@ -812,6 +832,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         wordSpacing,
         textRenderingMode,
         textRise,
+        fillColorCommand,
         textMatrix: textObject?.matrix?.slice() || null,
         ctm: ctm.slice(),
         textObject,
@@ -880,7 +901,8 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
           part.fontSize !== previous.fontSize ||
           part.horizontalScale !== previous.horizontalScale ||
           part.characterSpacing !== previous.characterSpacing ||
-          part.wordSpacing !== previous.wordSpacing)
+          part.wordSpacing !== previous.wordSpacing ||
+          part.fillColorCommand !== previous.fillColorCommand)
       ) {
         break;
       }
@@ -891,7 +913,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       tjAdjustment += part.tjAdjustment || 0;
       textRuns.push({
         ...showStrings[start],
-        end: part.operationEnd,
+        operationEnd: part.operationEnd,
         text,
         sourceCodes: sourceCodes.slice(),
         tjAdjustment,
@@ -1035,6 +1057,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
             part.wordSpacing !== first.wordSpacing ||
             part.textRenderingMode !== first.textRenderingMode ||
             part.textRise !== first.textRise ||
+            part.fillColorCommand !== first.fillColorCommand ||
             !sameMatrix(part.ctm, first.ctm) ||
             !sameMatrix(part.textMatrix.slice(0, 4), first.textMatrix.slice(0, 4)) ||
             !sameMatrix(position.linear, firstPosition.linear) ||
@@ -1076,6 +1099,14 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
 
   const replacements = new Map();
   for (const edit of edits) {
+    const targetFormattingRanges = (model.formattingRanges || [])
+      .filter((range) => range.textTargetId === edit.sourceTextId);
+    for (const range of targetFormattingRanges) {
+      if (range.text !== edit.text) {
+        throw new Error("Formatting ranges no longer match the edited PDF text. The PDF was not changed.");
+      }
+    }
+    const formattedSegments = formattingTextSegments(edit.text, targetFormattingRanges);
     const matching = textRuns.filter((token) => token.text === edit.originalText);
     let target = matching[edit.occurrenceIndex || 0];
     if (!target) {
@@ -1191,7 +1222,8 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
           const width = compositeInfo.widths.get(cid) ?? compositeInfo.defaultWidth;
           return sum + (width / 1000) * target.fontSize;
         }, 0) +
-          [...value].length * target.characterSpacing;
+          [...value].length * target.characterSpacing +
+          (value.match(/ /g)?.length || 0) * target.wordSpacing;
       }
       const glyphWidth = standardFont
         ? standardFont.widthOfTextAtSize(value, target.fontSize)
@@ -1213,6 +1245,34 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         value.length * target.characterSpacing +
         (value.match(/ /g)?.length || 0) * target.wordSpacing
       );
+    };
+    const standardFontResources = new Map();
+    const standardFontResource = async (fontKey) => {
+      if (standardFontResources.has(fontKey)) return standardFontResources.get(fontKey);
+      const standardFontName = StandardFonts[fontKey];
+      if (!standardFontName) {
+        throw new Error(`The requested PDF font variant "${fontKey}" is unavailable. The PDF was not changed.`);
+      }
+      const embeddedFont = await document.embedFont(standardFontName);
+      let resourceName = `PrivyRange${fontKey}`;
+      let suffix = 1;
+      while (fonts?.has(PDFName.of(resourceName))) {
+        resourceName = `PrivyRange${fontKey}${suffix++}`;
+      }
+      const updatedFonts = fonts
+        ? fonts.clone(document.context)
+        : document.context.obj({});
+      updatedFonts.set(PDFName.of(resourceName), embeddedFont.ref);
+      const updatedResources = resources
+        ? resources.clone(document.context)
+        : document.context.obj({});
+      updatedResources.set(PDFName.Font, document.context.register(updatedFonts));
+      resources = updatedResources;
+      fonts = updatedFonts;
+      page.node.set(PDFName.Resources, document.context.register(updatedResources));
+      const resource = `/${resourceName}`;
+      standardFontResources.set(fontKey, resource);
+      return resource;
     };
     const originalWidth = target.multiOperation
       ? target.measuredWidth
@@ -1277,6 +1337,128 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       : simpleUnicodeInfo?.kind === "simple"
         ? encodeMappedText(edit.text, simpleUnicodeInfo, 1)
         : encodePdfLiteral(edit.text);
+    let formattedBody = null;
+    if (targetFormattingRanges.length) {
+      if (
+        (target.tjAdjustment || 0) !== 0 ||
+        target.parts?.some((part) => (part.tjAdjustment || 0) !== 0)
+      ) {
+        throw new Error(
+          "Character formatting cannot preserve internal PDF text-spacing adjustments safely. The PDF was not changed."
+        );
+      }
+      const sourceStandardFont = STANDARD_FONT_NAMES[baseFont];
+      const sourceFamily = sourceStandardFont?.startsWith("Courier")
+        ? "Courier"
+        : sourceStandardFont?.startsWith("TimesRoman")
+          ? "Times"
+          : sourceStandardFont?.startsWith("Helvetica")
+            ? "Helvetica"
+            : null;
+      const sourceBold = edit.sourceBold ??
+        (edit.fontWeight === "bold" || Boolean(sourceStandardFont?.includes("Bold")));
+      const sourceItalic = edit.sourceItalic ??
+        (edit.fontStyle === "italic" ||
+          Boolean(sourceStandardFont?.includes("Italic") || sourceStandardFont?.includes("Oblique")));
+      const sourceResourceName = replacementFontName;
+      const sourceSpacing = (value) =>
+        [...value].length * target.characterSpacing +
+        (value.match(/ /g)?.length || 0) * target.wordSpacing;
+      const operations = [
+        `${sourceResourceName} ${target.fontSize} Tf`,
+        `${target.horizontalScale} Tz`,
+      ];
+      for (const segment of formattedSegments) {
+        const style = segment.style;
+        const styled = Boolean(style);
+        const segmentFontSize = styled
+          ? style.fontSize ?? target.fontSize
+          : target.fontSize;
+        let segmentFontName = sourceResourceName;
+        let standardFont = null;
+        if (
+          styled &&
+          (Object.hasOwn(style, "fontFamily") ||
+            Object.hasOwn(style, "bold") ||
+            Object.hasOwn(style, "italic"))
+        ) {
+          const family = style.fontFamily || sourceFamily || edit.fontFamily;
+          const fontKey = standardPdfFontKey(
+            family,
+            style.bold ?? sourceBold,
+            style.italic ?? sourceItalic
+          );
+          if (!fontKey) {
+            throw new Error(
+              `The requested font family "${family || "unknown"}" or variant is unsupported for PDF export. The PDF was not changed.`
+            );
+          }
+          segmentFontName = await standardFontResource(fontKey);
+          standardFont = await document.embedFont(StandardFonts[fontKey]);
+        }
+        if (styled && style.color && target.textRenderingMode !== 0) {
+          throw new Error(
+            "Character color cannot be applied safely to this PDF text rendering mode. The PDF was not changed."
+          );
+        }
+        if (styled && style.color && !target.fillColorCommand) {
+          throw new Error(
+            "The source text color uses a PDF color space that cannot be restored safely. The PDF was not changed."
+          );
+        }
+        const sourceAdvance = textWidth(segment.text);
+        const spacing = sourceSpacing(segment.text);
+        const sourceGlyphAdvance = Math.max(0, sourceAdvance - spacing);
+        const formattedGlyphAdvance = standardFont
+          ? standardFont.widthOfTextAtSize(segment.text, segmentFontSize)
+          : sourceGlyphAdvance * segmentFontSize / target.fontSize;
+        const formattedAdvance = formattedGlyphAdvance + spacing;
+        const segmentScale = horizontalScaleForAdvance(
+          sourceAdvance,
+          formattedAdvance,
+          scale
+        );
+        if (segmentScale === null) {
+          throw new Error(
+            "The selected text range has no measurable advance in the requested font. The PDF was not changed."
+          );
+        }
+        if (segmentFontName !== sourceResourceName || segmentFontSize !== target.fontSize) {
+          operations.push(`${segmentFontName} ${segmentFontSize} Tf`);
+        }
+        if (segmentScale !== target.horizontalScale) {
+          operations.push(`${segmentScale} Tz`);
+        }
+        if (styled && style.color) {
+          const hex = style.color.slice(1);
+          const red = Number.parseInt(hex.slice(0, 2), 16) / 255;
+          const green = Number.parseInt(hex.slice(2, 4), 16) / 255;
+          const blue = Number.parseInt(hex.slice(4, 6), 16) / 255;
+          operations.push(`${red} ${green} ${blue} rg`);
+        }
+        const encodedSegment = standardFont
+          ? encodePdfLiteral(segment.text)
+          : isComposite
+            ? encodeMappedText(segment.text, compositeInfo, 2)
+            : simpleUnicodeInfo?.kind === "simple"
+              ? encodeMappedText(segment.text, simpleUnicodeInfo, 1)
+              : encodePdfLiteral(segment.text);
+        operations.push(`${asciiBytes(encodedSegment, 0, encodedSegment.length)} TJ`);
+        if (styled && style.color) operations.push(target.fillColorCommand);
+        if (segmentScale !== target.horizontalScale) {
+          operations.push(`${target.horizontalScale} Tz`);
+        }
+        if (segmentFontName !== sourceResourceName || segmentFontSize !== target.fontSize) {
+          operations.push(`${sourceResourceName} ${target.fontSize} Tf`);
+        }
+      }
+      if (adjustment !== null) operations.push(`[${adjustment.toFixed(4)}] TJ`);
+      if (sourceResourceName !== target.fontName) {
+        operations.push(`${target.fontName} ${target.fontSize} Tf`);
+      }
+      operations.push(`${target.horizontalScale} Tz`);
+      formattedBody = operations.join(" ");
+    }
     const scalePrefix = scale !== target.horizontalScale ? `${scale} Tz ` : "";
     const scaleSuffix = scalePrefix ? ` ${target.horizontalScale} Tz` : "";
     const fontSwitchPrefix = replacementFontName === target.fontName
@@ -1314,14 +1496,30 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
     const moveSuffix = moveX || moveY
       ? ` 1 0 0 1 ${(-moveX).toFixed(4)} ${(-moveY).toFixed(4)} cm`
       : "";
-    const prefixBytes = new TextEncoder().encode(`${fontSwitchPrefix}${movePrefix}${scalePrefix}[`);
-    const suffixBytes = new TextEncoder().encode(
-      `${adjustment === null ? "" : ` ${adjustment.toFixed(4)}`} ] TJ${scaleSuffix}${fontSwitchSuffix}${moveSuffix}`
+    const prefixBytes = new TextEncoder().encode(
+      formattedBody === null
+        ? `${fontSwitchPrefix}${movePrefix}${scalePrefix}[`
+        : movePrefix
     );
-    const operationBytes = new Uint8Array(prefixBytes.length + replacementBytes.length + suffixBytes.length);
+    const suffixBytes = new TextEncoder().encode(
+      formattedBody === null
+        ? `${adjustment === null ? "" : ` ${adjustment.toFixed(4)}`} ] TJ${scaleSuffix}${fontSwitchSuffix}${moveSuffix}`
+        : moveSuffix
+    );
+    const bodyBytes = formattedBody === null
+      ? replacementBytes
+      : new TextEncoder().encode(formattedBody);
+    const movePrefixBytes = new Uint8Array();
+    const operationBytes = new Uint8Array(
+      prefixBytes.length + movePrefixBytes.length + bodyBytes.length + suffixBytes.length
+    );
     operationBytes.set(prefixBytes);
-    operationBytes.set(replacementBytes, prefixBytes.length);
-    operationBytes.set(suffixBytes, prefixBytes.length + replacementBytes.length);
+    operationBytes.set(movePrefixBytes, prefixBytes.length);
+    operationBytes.set(bodyBytes, prefixBytes.length + movePrefixBytes.length);
+    operationBytes.set(
+      suffixBytes,
+      prefixBytes.length + movePrefixBytes.length + bodyBytes.length
+    );
     const sourceParts = target.parts || [target];
     for (let index = 0; index < sourceParts.length; index++) {
       const part = sourceParts[index];
