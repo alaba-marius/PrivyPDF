@@ -1,6 +1,7 @@
 import * as pdfjs from "/vendor/pdfjs/pdf.min.js";
 import { icon } from "./icons.js";
 import { validateTextEdit } from "./pdf-viewer.js";
+import { isTextMarkAnnotation, TEXT_MARK_TOOLS } from "./text-marks.js";
 
 export function selectFromEvent(state, id, event, indexOf, renderSelection) {
   if (event.shiftKey && state.anchorId) {
@@ -550,12 +551,7 @@ export function createAnnotationEditor({
     text: "Free Text Tool",
   };
   const annotationStyleTools = new Set(Object.keys(annotationToolNames));
-  const textMarkupTools = new Set([
-    "highlight",
-    "annotate-underline",
-    "annotate-squiggle",
-    "annotate-strike",
-  ]);
+  const textMarkupTools = new Set(TEXT_MARK_TOOLS);
   const shapeToolNames = {
     "shape-rect": "Rectangle Tool",
     "shape-ellipse": "Ellipse Tool",
@@ -1353,9 +1349,12 @@ export function createAnnotationEditor({
       formToolActive ? "Form field list" : "Page annotations"
     );
     els.removeAllAnnotations.hidden = formToolActive;
+    const removableAnnotations = (page?.annotations || []).filter(
+      (annotation) => !isTextMarkAnnotation(annotation)
+    );
     els.removeAllAnnotations.disabled = formToolActive
       ? !formEntries.length
-      : !page?.annotations?.length;
+      : !removableAnnotations.length;
     if (!page) {
       els.annotationList.replaceChildren();
       return;
@@ -1363,16 +1362,20 @@ export function createAnnotationEditor({
     const entries = [...(formToolActive ? formEntries : page.annotations || [])].reverse();
     const fragment = document.createDocumentFragment();
     entries.forEach((annotation, visualIndex) => {
+      const textMark = isTextMarkAnnotation(annotation);
       const item = document.createElement("li");
       item.className = "annotation-list-item";
-      item.classList.toggle("is-selected", state.textSelection?.annotationId === annotation.id);
+      item.classList.toggle(
+        "is-selected",
+        !textMark && state.textSelection?.annotationId === annotation.id
+      );
       const move = document.createElement("button");
       move.type = "button";
       move.className = "icon-btn layer-move";
       move.setAttribute("aria-label", `Move ${annotationName(annotation)} ${visualIndex ? "up" : "down"}`);
       move.title = visualIndex ? "Move in front" : "Move behind";
       move.innerHTML = `<span aria-hidden="true">${visualIndex ? "↕" : "↕"}</span>`;
-      move.disabled = entries.length < 2;
+      move.disabled = textMark || entries.length < 2;
       move.addEventListener("click", (event) => {
         event.stopPropagation();
         const index = page.annotations.findIndex((entry) => entry.id === annotation.id);
@@ -1409,7 +1412,9 @@ export function createAnnotationEditor({
       label.type = "button";
       label.className = "annotation-list-label";
       label.textContent = annotationName(annotation);
+      label.disabled = textMark;
       label.addEventListener("click", () => {
+        if (textMark) return;
         state.currentId = page.id;
         state.textSelection = { pageId: page.id, kind: "annotation", annotationId: annotation.id };
         if (annotation.type === "formField") renderInspector();
@@ -1421,7 +1426,9 @@ export function createAnnotationEditor({
       edit.className = "icon-btn";
       edit.setAttribute("aria-label", `Select ${annotationName(annotation)}`);
       edit.innerHTML = icon("pen");
+      edit.disabled = textMark;
       edit.addEventListener("click", () => {
+        if (textMark) return;
         state.currentId = page.id;
         state.textSelection = { pageId: page.id, kind: "annotation", annotationId: annotation.id };
         if (annotation.type === "formField") renderInspector();
@@ -1433,9 +1440,11 @@ export function createAnnotationEditor({
       remove.className = "icon-btn";
       remove.setAttribute("aria-label", `Remove ${annotationName(annotation)}`);
       remove.innerHTML = icon("trash");
+      remove.hidden = textMark;
       remove.addEventListener("click", () => eraseAnnotation(page, annotation.id));
       item.append(move, iconNode, label, edit, remove);
       item.addEventListener("click", () => {
+        if (textMark) return;
         state.currentId = page.id;
         state.textSelection = { pageId: page.id, kind: "annotation", annotationId: annotation.id };
         renderInspector();
@@ -1487,6 +1496,8 @@ export function createAnnotationEditor({
 
   function setTool(tool) {
     if (tool === "paragraph") tool = "text";
+    const selectedAnnotation = activeAnnotation();
+    if (isTextMarkAnnotation(selectedAnnotation)) state.textSelection = null;
     state.annotationTool = tool;
     document.body.dataset.annotationTool = tool;
     if (tool !== "text") closeTextOptions();
@@ -1525,12 +1536,16 @@ export function createAnnotationEditor({
           ((tool === "select" || tool === "text") &&
             (input.dataset.cellText === "true" ||
               input.dataset.directEdit === "true" ||
-              state.textSelection?.annotationId === input.closest("[data-annotation-id]")?.dataset.annotationId))
+              state.textSelection?.annotationId === input.closest("[data-annotation-id]")?.dataset.annotationId)) ||
+          (textMarkupTools.has(tool) &&
+            state.textSelection?.annotationId === input.closest("[data-annotation-id]")?.dataset.annotationId)
       );
     });
     els.pages.querySelectorAll(".annotation-inline-edit-text").forEach((input) => {
       input.contentEditable = String(
-        tool === "select" && document.activeElement === input
+        (tool === "select" && document.activeElement === input) ||
+          (textMarkupTools.has(tool) &&
+            state.textSelection?.annotationId === input.closest("[data-annotation-id]")?.dataset.annotationId)
       );
     });
     renderAnnotationList();
@@ -1680,40 +1695,107 @@ export function createAnnotationEditor({
     renderInspector();
   }
 
-  function addTextMarkupBoxes(page, boxes, tool) {
+  function textOffsetsInRange(range, element) {
+    if (!range.intersectsNode(element)) return null;
+    const content = element.matches(".pdf-text-item, .annotation-text-input, .annotation-inline-edit-text")
+      ? element
+      : element.querySelector(".annotation-inline-edit-text, .annotation-text-input");
+    if (!content) return null;
+    const prefixLength = (container, offset) => {
+      if (container !== content && !content.contains(container)) return null;
+      const prefix = document.createRange();
+      prefix.selectNodeContents(content);
+      prefix.setEnd(container, offset);
+      return prefix.toString().length;
+    };
+    const length = content.textContent?.length || 0;
+    const start = prefixLength(range.startContainer, range.startOffset) ?? 0;
+    const end = prefixLength(range.endContainer, range.endOffset) ?? length;
+    return end > start ? { content, start, end } : null;
+  }
+
+  function rangeForTextOffsets(content, start, end) {
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let total = 0;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const length = node.textContent?.length || 0;
+      nodes.push({ node, start: total, end: total + length });
+      total += length;
+    }
+    if (start >= end || start >= total) return null;
+    const first = nodes.find((item) => start < item.end);
+    const last = [...nodes].reverse().find((item) => end > item.start);
+    if (!first || !last) return null;
+    const result = document.createRange();
+    result.setStart(first.node, Math.max(0, start - first.start));
+    result.setEnd(last.node, Math.min(last.end - last.start, end - last.start));
+    return result;
+  }
+
+  function createTextMarkup(tool, segments, textTarget = null, textRange = null) {
+    if (!segments.length) return null;
     const style = annotationToolStyle(tool);
-    const annotations = boxes.map((box) => {
-      if (tool === "highlight") {
-        return {
-          id: crypto.randomUUID(),
-          type: "highlight",
-          x: box.x,
-          y: box.y,
-          w: box.w,
-          h: box.h,
-          color: style.color,
-          opacity: style.opacity,
-        };
-      }
-      const lineY = tool === "annotate-strike"
-        ? box.y + box.h * 0.52
-        : box.y + box.h * 0.9;
-      const points = tool === "annotate-squiggle"
-        ? Array.from({ length: 13 }, (_, index) => ({
-            x: box.x + (box.w * index) / 12,
-            y: lineY + (index % 2 ? -1 : 1) * box.h * 0.1,
-          }))
-        : [{ x: box.x, y: lineY }, { x: box.x + box.w, y: lineY }];
-      return {
-        id: crypto.randomUUID(),
-        type: "draw",
-        tool,
-        points,
-        color: style.color,
-        width: style.width / Math.max(state.zoom, 0.25),
-        opacity: style.opacity,
-      };
+    const box = segments[0];
+    return {
+      id: crypto.randomUUID(),
+      type: tool === "highlight" ? "highlight" : "draw",
+      ...(tool === "highlight" ? {} : { tool }),
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      color: style.color,
+      opacity: style.opacity,
+      textMark: true,
+      segments,
+      ...(tool === "highlight"
+        ? {}
+        : { width: style.width / Math.max(state.zoom, 0.25) }),
+      ...(textTarget ? { textTarget, textRange } : {}),
+    };
+  }
+
+  function addTextMarkupFromRange(page, range, container, targets, tool) {
+    const annotations = [];
+    const candidates = targets.filter((target) => {
+      const content = target.matches(".pdf-text-item")
+        ? target
+        : target.querySelector(".annotation-inline-edit-text, .annotation-text-input");
+      return content && range.intersectsNode(content);
     });
+    let anchored = 0;
+    for (const target of candidates) {
+      const offsets = textOffsetsInRange(range, target);
+      if (!offsets) continue;
+      const selectedRange = rangeForTextOffsets(offsets.content, offsets.start, offsets.end);
+      const segments = [...(selectedRange?.getClientRects() || [])]
+        .map((rect) => selectionRectToBaselineBox(rect, container, page))
+        .filter(Boolean);
+      const targetId = target.dataset.textTargetId;
+      const targetKind = target.dataset.textTargetKind;
+      if (!segments.length || !targetId || !["pdf", "annotation"].includes(targetKind)) continue;
+      annotations.push(createTextMarkup(
+        tool,
+        segments,
+        { kind: targetKind, id: targetId },
+        { start: offsets.start, end: offsets.end }
+      ));
+    }
+
+    if (!annotations.length) {
+      const fallbackSegments = [...range.getClientRects()]
+        .map((rect) => selectionRectToBaselineBox(rect, container, page))
+        .filter(Boolean);
+      const fallback = createTextMarkup(tool, fallbackSegments);
+      if (fallback) annotations.push(fallback);
+      if (fallbackSegments.length) {
+      toast("This text selection could not be linked to a text element; the mark will stay in place if the text changes.", {
+        type: "error",
+      });
+      }
+    }
     if (!annotations.length) return;
     commit(() => {
       page.annotations = [...(page.annotations || []), ...annotations];
@@ -2193,10 +2275,17 @@ export function createAnnotationEditor({
     }
   }
 
-  function eraseAnnotation(page, id) {
-    if (!page.annotations?.some((annotation) => annotation.id === id)) return;
+  function eraseAnnotation(page, id, { eraser = false } = {}) {
+    const annotation = page.annotations?.find((item) => item.id === id);
+    if (!annotation || (isTextMarkAnnotation(annotation) && !eraser)) return;
     commit(() => {
-      page.annotations = page.annotations.filter((annotation) => annotation.id !== id);
+      const deletedTextId = annotation.type === "text" ? annotation.id : null;
+      page.annotations = page.annotations.filter((item) =>
+        item.id !== id &&
+        !(deletedTextId && isTextMarkAnnotation(item) &&
+          item.textTarget?.kind === "annotation" &&
+          item.textTarget.id === deletedTextId)
+      );
       if (state.textSelection?.pageId === page.id && state.textSelection.annotationId === id) {
         state.textSelection = null;
       }
@@ -2422,11 +2511,233 @@ export function createAnnotationEditor({
   document.addEventListener("pointerup", finishSvgDrag);
   document.addEventListener("pointercancel", finishSvgDrag);
 
+  function resolveTextMarkTarget(layer, annotation) {
+    if (!annotation.textTarget) return null;
+    const matching = (root) =>
+      [...(root?.querySelectorAll("[data-text-target-id]") || [])].find(
+        (element) =>
+          element.dataset.textTargetId === annotation.textTarget.id &&
+          element.dataset.textTargetKind === annotation.textTarget.kind
+      ) || null;
+    return matching(layer) || matching(layer.parentElement);
+  }
+
+  function updateTextMarkGeometry(annotation, segments) {
+    const first = segments[0];
+    const updated = {
+      ...annotation,
+      segments,
+      x: first.x,
+      y: first.y,
+      w: first.w,
+      h: first.h,
+    };
+    if (updated.type === "draw") {
+      const lineY = updated.tool === "annotate-strike"
+        ? first.y + first.h * 0.52
+        : first.y + first.h * 0.9;
+      updated.points = updated.tool === "annotate-squiggle"
+        ? Array.from({ length: 13 }, (_, index) => ({
+            x: first.x + (first.w * index) / 12,
+            y: lineY + (index % 2 ? -1 : 1) * first.h * 0.1,
+          }))
+        : [{ x: first.x, y: lineY }, { x: first.x + first.w, y: lineY }];
+    }
+    return updated;
+  }
+
+  function moveAttachedTextMarks(page, target, from, to) {
+    if (!target || !from.w || !from.h) return;
+    const scaleX = to.w / from.w;
+    const scaleY = to.h / from.h;
+    page.annotations = page.annotations.map((annotation) => {
+      if (
+        !isTextMarkAnnotation(annotation) ||
+        annotation.textTarget?.kind !== target.kind ||
+        annotation.textTarget.id !== target.id ||
+        !annotation.segments?.length
+      ) return annotation;
+      const segments = annotation.segments.map((segment) => ({
+        x: to.x + (segment.x - from.x) * scaleX,
+        y: to.y + (segment.y - from.y) * scaleY,
+        w: segment.w * scaleX,
+        h: segment.h * scaleY,
+      }));
+      return updateTextMarkGeometry(annotation, segments);
+    });
+  }
+
+  function refreshAttachedTextMarks(page, target, updatedTextAnnotation) {
+    if (!target) return;
+    const pageElement = [...els.pages.children].find((element) => element.dataset.id === page.id);
+    const layer = pageElement?.querySelector(".page-annotation-layer");
+    if (!layer) return;
+    if (updatedTextAnnotation?.type === "text") {
+      const mark = [...layer.querySelectorAll("[data-annotation-id]")].find(
+        (element) => element.dataset.annotationId === updatedTextAnnotation.id
+      );
+      if (mark) {
+        mark.style.fontSize = `${Math.max(6, (updatedTextAnnotation.fontSize || 12) * state.zoom)}px`;
+        mark.style.fontWeight = updatedTextAnnotation.fontWeight || "normal";
+        mark.style.fontStyle = updatedTextAnnotation.fontStyle || "normal";
+        mark.style.fontFamily = updatedTextAnnotation.fontFamily === "TimesRoman"
+          ? '"Times New Roman", Times, serif'
+          : updatedTextAnnotation.fontFamily === "Courier"
+            ? "Courier, monospace"
+            : "Arial, Helvetica, sans-serif";
+        const input = mark.querySelector(".annotation-text-input");
+        if (input) input.textContent = updatedTextAnnotation.text || "";
+      }
+    }
+    for (const annotation of page.annotations || []) {
+      if (
+        isTextMarkAnnotation(annotation) &&
+        annotation.textTarget?.kind === target.kind &&
+        annotation.textTarget.id === target.id
+      ) {
+        textMarkSegments(annotation, page, layer);
+      }
+    }
+  }
+
+  function textMarkSegments(annotation, page, layer, staticPreview = false) {
+    const stored = annotation.segments || (
+      annotation.type === "highlight"
+        ? [{ x: annotation.x, y: annotation.y, w: annotation.w, h: annotation.h }]
+        : []
+    );
+    const target = resolveTextMarkTarget(layer, annotation);
+    if (!target || !annotation.textRange) return { segments: stored, changed: false };
+    const content = target.matches(".pdf-text-item, .annotation-text-input, .annotation-inline-edit-text")
+      ? target
+      : target.querySelector(".annotation-inline-edit-text, .annotation-text-input");
+    if (!content) return { segments: stored, changed: false };
+    const range = rangeForTextOffsets(content, annotation.textRange.start, annotation.textRange.end);
+    if (!range) return { segments: stored, changed: false };
+    const pageContainer = layer.parentElement;
+    const resolved = [...range.getClientRects()]
+      .map((rect) => selectionRectToBaselineBox(rect, pageContainer, page))
+      .filter(Boolean);
+    if (!resolved.length) return { segments: stored, changed: false };
+    const changed = stored.length !== resolved.length || resolved.some((segment, index) =>
+      ["x", "y", "w", "h"].some(
+        (key) => Math.abs(segment[key] - stored[index][key]) > 0.00005
+      )
+    );
+    if (changed && !staticPreview) {
+      Object.assign(annotation, updateTextMarkGeometry(annotation, resolved));
+    }
+    return { segments: staticPreview || changed ? resolved : stored, changed: changed && !staticPreview };
+  }
+
+  function renderTextMark(layer, page, annotation, staticPreview) {
+    const { segments, changed } = textMarkSegments(annotation, page, layer, staticPreview);
+    const color = annotation.color || (annotation.type === "highlight" ? "#f5d547" : "#171717");
+    if (!segments.length && annotation.type === "draw" && annotation.points?.length) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.classList.add("annotation-path", "annotation-text-mark");
+      svg.dataset.annotationId = annotation.id;
+      svg.setAttribute("viewBox", "0 0 1000 1000");
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.style.pointerEvents = "none";
+      const visible = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      visible.setAttribute("points", formatSvgPoints(annotation.points, page.rotation));
+      visible.setAttribute("fill", "none");
+      visible.setAttribute("stroke", color);
+      visible.setAttribute("stroke-width", String(annotation.width || 2));
+      visible.setAttribute("stroke-opacity", String(annotation.opacity ?? 1));
+      visible.setAttribute("stroke-linecap", "round");
+      visible.setAttribute("stroke-linejoin", "round");
+      svg.append(visible);
+      const hit = createSvgHitTarget("polyline", { points: visible.getAttribute("points") });
+      hit.classList.add("annotation-text-mark-hit");
+      svg.append(hit);
+      svg.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.annotationTool === "eraser" && !staticPreview) {
+          eraseAnnotation(page, annotation.id, { eraser: true });
+        }
+      });
+      layer.append(svg);
+      return false;
+    }
+    if (!segments.length) return false;
+    if (annotation.type === "highlight") {
+      for (const segment of segments) {
+        const box = projectBox(segment, page.rotation);
+        const mark = document.createElement("div");
+        mark.className = "annotation-mark annotation-highlight annotation-text-mark";
+        mark.dataset.annotationId = annotation.id;
+        mark.style.left = `${box.x * 100}%`;
+        mark.style.top = `${box.y * 100}%`;
+        mark.style.width = `${box.w * 100}%`;
+        mark.style.height = `${box.h * 100}%`;
+        mark.style.backgroundColor = color;
+        mark.style.opacity = String(annotation.opacity ?? 0.35);
+        mark.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (state.annotationTool === "eraser" && !staticPreview) {
+            eraseAnnotation(page, annotation.id, { eraser: true });
+          }
+        });
+        layer.append(mark);
+      }
+      return changed;
+    }
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("annotation-path", "annotation-text-mark");
+    svg.dataset.annotationId = annotation.id;
+    svg.setAttribute("viewBox", "0 0 1000 1000");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.style.pointerEvents = "none";
+    for (const segment of segments) {
+      const lineY = annotation.tool === "annotate-strike"
+        ? segment.y + segment.h * 0.52
+        : segment.y + segment.h * 0.9;
+      const points = annotation.tool === "annotate-squiggle"
+        ? Array.from({ length: 13 }, (_, index) => ({
+            x: segment.x + (segment.w * index) / 12,
+            y: lineY + (index % 2 ? -1 : 1) * segment.h * 0.1,
+          }))
+        : [{ x: segment.x, y: lineY }, { x: segment.x + segment.w, y: lineY }];
+      const visible = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      visible.setAttribute("points", formatSvgPoints(points, page.rotation));
+      visible.setAttribute("fill", "none");
+      visible.setAttribute("stroke", color);
+      visible.setAttribute("stroke-width", String(annotation.width || 2));
+      visible.setAttribute("stroke-opacity", String(annotation.opacity ?? 1));
+      visible.setAttribute("stroke-linecap", "round");
+      visible.setAttribute("stroke-linejoin", "round");
+      svg.append(visible);
+      const hit = createSvgHitTarget("polyline", { points: visible.getAttribute("points") });
+      hit.classList.add("annotation-text-mark-hit");
+      svg.append(hit);
+    }
+    svg.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.annotationTool === "eraser" && !staticPreview) {
+        eraseAnnotation(page, annotation.id, { eraser: true });
+      }
+    });
+    layer.append(svg);
+    return changed;
+  }
+
   function renderLayer(layer, page, { scale = state.zoom, staticPreview = false } = {}) {
     layer.inert = staticPreview;
     layer.setAttribute("aria-hidden", String(staticPreview));
     layer.replaceChildren();
+    const textMarks = [];
+    let textMarkGeometryChanged = false;
     for (const annotation of page.annotations || []) {
+      if (isTextMarkAnnotation(annotation)) {
+        textMarks.push(annotation);
+        continue;
+      }
       if (annotation.type === "shape" && annotation.shape === "polyline" && annotation.points?.length) {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.classList.add("annotation-path", "annotation-shape-line");
@@ -2658,6 +2969,8 @@ export function createAnnotationEditor({
         }
         if (annotation.type === "text") {
           mark.classList.add("annotation-text");
+          mark.dataset.textTargetId = annotation.id;
+          mark.dataset.textTargetKind = "annotation";
           if (annotation.stamp) mark.classList.add("annotation-stamp");
           mark.dataset.movable = String(
             !annotation.cellText && (!annotation.directEdit || annotation.formLabel)
@@ -2692,12 +3005,16 @@ export function createAnnotationEditor({
           const textContent = document.createElement("span");
           textContent.className = "annotation-text-input";
           textContent.contentEditable = String(
-            !staticPreview && (state.annotationTool === "text" ||
+            !staticPreview && (
+              state.annotationTool === "text" ||
               (state.annotationTool === "form-label" && annotation.formLabel) ||
               ((state.annotationTool === "select" || state.annotationTool === "text") &&
                 (annotation.cellText ||
                   annotation.directEdit ||
-                  state.textSelection?.annotationId === annotation.id)))
+                  state.textSelection?.annotationId === annotation.id)) ||
+              (textMarkupTools.has(state.annotationTool) &&
+                state.textSelection?.annotationId === annotation.id)
+            )
           );
           textContent.dataset.directEdit = String(Boolean(annotation.directEdit));
           textContent.dataset.cellText = String(Boolean(annotation.cellText));
@@ -2775,6 +3092,10 @@ export function createAnnotationEditor({
         }
         if (annotation.type === "text-edit") {
           mark.classList.add("annotation-inline-edit");
+          if (annotation.sourceTextId) {
+            mark.dataset.textTargetId = annotation.sourceTextId;
+            mark.dataset.textTargetKind = "pdf";
+          }
           if (!annotation.moveX && !annotation.moveY && annotation.fill) {
             mark.style.backgroundColor = annotation.fill;
           }
@@ -2786,7 +3107,12 @@ export function createAnnotationEditor({
           const measure = document.createElement("canvas").getContext("2d");
           const textContent = document.createElement("span");
           textContent.className = "annotation-inline-edit-text";
-          textContent.contentEditable = "false";
+          textContent.contentEditable = String(
+            !staticPreview &&
+              (state.annotationTool === "select" && document.activeElement?.classList.contains("annotation-inline-edit-text") ||
+                textMarkupTools.has(state.annotationTool) &&
+                  state.textSelection?.annotationId === annotation.id)
+          );
           textContent.setAttribute("role", "textbox");
           textContent.setAttribute("aria-label", "Edit selected PDF text");
           textContent.setAttribute("spellcheck", "false");
@@ -2852,9 +3178,17 @@ export function createAnnotationEditor({
           (annotation.type === "text" && annotation.formLabel)
         ) {
           mark.addEventListener("pointerdown", (event) => {
+            const isAltDragOnEditedPdfText =
+              annotation.type === "text-edit" &&
+              event.altKey &&
+              event.target.closest(".annotation-inline-edit-text");
             if (
+              (textMarkupTools.has(state.annotationTool) &&
+                (annotation.type === "text" || annotation.type === "text-edit")) ||
               event.target.closest(".annotation-image-resize-handle") ||
-              event.target.closest(".annotation-inline-edit-text")
+              (event.target.closest(".annotation-inline-edit-text") && !isAltDragOnEditedPdfText) ||
+              (textMarkupTools.has(state.annotationTool) &&
+                event.target.closest(".annotation-text-input"))
             ) return;
             if (!canManipulate() || event.button !== 0) return;
             event.preventDefault();
@@ -2940,6 +3274,29 @@ export function createAnnotationEditor({
                 page.annotations = page.annotations.map((item) =>
                   item.id === annotation.id ? { ...item, ...drag.preview } : item
                 );
+                const target = annotation.type === "text"
+                  ? { kind: "annotation", id: annotation.id }
+                  : annotation.type === "text-edit" && annotation.sourceTextId
+                    ? { kind: "pdf", id: annotation.sourceTextId }
+                    : null;
+                const offsetX = annotation.type === "text-edit" ? annotation.moveX || 0 : 0;
+                const offsetY = annotation.type === "text-edit" ? annotation.moveY || 0 : 0;
+                moveAttachedTextMarks(
+                  page,
+                  target,
+                  {
+                    x: annotation.x + offsetX,
+                    y: annotation.y + offsetY,
+                    w: annotation.w,
+                    h: annotation.h,
+                  },
+                  {
+                    x: drag.preview.x + offsetX,
+                    y: drag.preview.y + offsetY,
+                    w: drag.preview.w,
+                    h: drag.preview.h,
+                  }
+                );
               });
               return;
             }
@@ -2953,6 +3310,19 @@ export function createAnnotationEditor({
                     ? { ...item, moveX: x - annotation.x, moveY: y - annotation.y }
                     : item
                 );
+                if (annotation.sourceTextId) {
+                  moveAttachedTextMarks(
+                    page,
+                    { kind: "pdf", id: annotation.sourceTextId },
+                    {
+                      x: annotation.x + (annotation.moveX || 0),
+                      y: annotation.y + (annotation.moveY || 0),
+                      w: annotation.w,
+                      h: annotation.h,
+                    },
+                    { x, y, w: annotation.w, h: annotation.h }
+                  );
+                }
               });
               return;
             }
@@ -2960,6 +3330,14 @@ export function createAnnotationEditor({
               page.annotations = page.annotations.map((item) =>
                 item.id === annotation.id ? { ...item, x, y } : item
               );
+              if (annotation.type === "text") {
+                moveAttachedTextMarks(
+                  page,
+                  { kind: "annotation", id: annotation.id },
+                  annotation,
+                  { ...annotation, x, y }
+                );
+              }
             });
           };
           mark.addEventListener("pointerup", finishObjectDrag);
@@ -3085,6 +3463,10 @@ export function createAnnotationEditor({
         }
         mark.addEventListener("click", (event) => {
           if (consumeSuppressedPdfTextClick(event)) return;
+          if (
+            textMarkupTools.has(state.annotationTool) &&
+            (annotation.type === "text" || annotation.type === "text-edit")
+          ) return;
           if (suppressObjectClick) {
             suppressObjectClick = false;
             event.preventDefault();
@@ -3094,7 +3476,9 @@ export function createAnnotationEditor({
           if (state.annotationTool === "eraser") {
             event.preventDefault();
             event.stopPropagation();
-            eraseAnnotation(page, annotation.id);
+            if (annotation.type !== "text" && annotation.type !== "text-edit") {
+              eraseAnnotation(page, annotation.id, { eraser: true });
+            }
             return;
           }
           event.stopPropagation();
@@ -3152,6 +3536,12 @@ export function createAnnotationEditor({
         layer.append(mark);
       }
     }
+    for (const annotation of textMarks) {
+      if (renderTextMark(layer, page, annotation, staticPreview)) {
+        textMarkGeometryChanged = true;
+      }
+    }
+    if (textMarkGeometryChanged && !staticPreview) renderThumbnail(page);
     if (livePath?.pageId === page.id) {
       const preview = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       preview.classList.add("annotation-path", "annotation-preview");
@@ -3298,6 +3688,7 @@ export function createAnnotationEditor({
         const fontStyle = text.styles[item.fontName];
         const record = {
           id: `${itemIndex}-${item.str}`,
+          textTargetId: `pdf:${page.sourceId}:${page.index}:${itemIndex}`,
           str: item.str,
           x: box.x,
           y: box.y,
@@ -3405,6 +3796,7 @@ export function createAnnotationEditor({
           kind: "text",
           text: drag.item.tableCell?.text || drag.item.str,
           occurrenceIndex: drag.item.occurrenceIndex,
+          textTargetId: drag.item.textTargetId,
           fontSize: Math.max(6, (textBox.h * page.height * scale) / 1.25 / scale),
           fontFamily: resolveFontFamily(drag.item.fontStyle, drag.item.fontMetadata),
           fontWeight: drag.item.fontMetadata?.bold ? "bold" : "normal",
@@ -3430,11 +3822,13 @@ export function createAnnotationEditor({
         if (!textMarkupTools.has(state.annotationTool)) return;
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
-        const boxes = [...selection.getRangeAt(0).getClientRects()]
-          .map((rect) => selectionRectToBaselineBox(rect, container, page))
-          .filter(Boolean);
-        if (!boxes.length) return;
-        addTextMarkupBoxes(page, boxes, state.annotationTool);
+        addTextMarkupFromRange(
+          page,
+          selection.getRangeAt(0),
+          container,
+          [...textLayer.querySelectorAll(".pdf-text-item")],
+          state.annotationTool
+        );
         suppressMarkupClick = true;
         setTimeout(() => {
           selection.removeAllRanges();
@@ -3450,6 +3844,8 @@ export function createAnnotationEditor({
         const fontSize = Math.max(8, selectedBox.h * page.height * scale);
         span.className = "pdf-text-item";
         span.textContent = item.str;
+        span.dataset.textTargetId = item.textTargetId;
+        span.dataset.textTargetKind = "pdf";
         span.style.left = `${selectedBox.x * 100}%`;
         span.style.top = `${selectedBox.y * 100}%`;
         span.style.width = `${Math.max(selectedBox.w, 0.005) * 100}%`;
@@ -3512,6 +3908,7 @@ export function createAnnotationEditor({
             kind: "text",
             text: textSelection.text,
             occurrenceIndex: item.occurrenceIndex,
+            textTargetId: item.textTargetId,
             fontSize: Math.max(6, (textSelection.h * page.height * scale) / 1.25 / scale),
             fontFamily: resolveFontFamily(item.fontStyle, item.fontMetadata),
             fontWeight: item.fontMetadata?.bold ? "bold" : "normal",
@@ -3532,6 +3929,24 @@ export function createAnnotationEditor({
     }
 
     renderLayer(annotationLayer, page);
+    annotationLayer.addEventListener("pointerup", () => {
+      if (!textMarkupTools.has(state.annotationTool)) return;
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+      const targets = [
+        ...annotationLayer.querySelectorAll(
+          ".annotation-mark.annotation-text[data-text-target-id], .annotation-mark.annotation-inline-edit[data-text-target-id]"
+        ),
+      ];
+      addTextMarkupFromRange(
+        page,
+        selection.getRangeAt(0),
+        container,
+        targets,
+        state.annotationTool
+      );
+      setTimeout(() => selection.removeAllRanges(), 0);
+    });
     annotationLayer.addEventListener("pointerdown", (event) => {
       if (textMarkupTools.has(state.annotationTool)) return;
       if (
@@ -3723,8 +4138,29 @@ export function createAnnotationEditor({
     const page = currentPage();
     if (!page || !annotation) return;
     const updated = { ...annotation, ...patch };
+    const hasTextPatch = Object.prototype.hasOwnProperty.call(patch, "text");
+    const clearsText = hasTextPatch && patch.text === "";
+    const target = annotation.type === "text"
+      ? { kind: "annotation", id: annotation.id }
+      : annotation.type === "text-edit" && annotation.sourceTextId
+        ? { kind: "pdf", id: annotation.sourceTextId }
+        : null;
+    if (hasTextPatch && patch.text) refreshAttachedTextMarks(page, target, updated);
     commit(() => {
-      page.annotations = page.annotations.map((item) => (item.id === annotation.id ? updated : item));
+      const deletedTextTarget = clearsText
+        ? annotation.type === "text"
+          ? { kind: "annotation", id: annotation.id }
+          : annotation.type === "text-edit" && annotation.sourceTextId
+            ? { kind: "pdf", id: annotation.sourceTextId }
+            : null
+        : null;
+      page.annotations = page.annotations
+        .map((item) => (item.id === annotation.id ? updated : item))
+        .filter((item) =>
+          !(deletedTextTarget && isTextMarkAnnotation(item) &&
+            item.textTarget?.kind === deletedTextTarget.kind &&
+            item.textTarget.id === deletedTextTarget.id)
+        );
       state.textSelection = { pageId: page.id, kind: "annotation", annotationId: updated.id };
     });
     renderInspector();
@@ -3809,6 +4245,7 @@ export function createAnnotationEditor({
         fontStyle: selection.fontStyle,
         originalText: selection.text,
         occurrenceIndex: selection.occurrenceIndex,
+        ...(selection.textTargetId ? { sourceTextId: selection.textTargetId } : {}),
         ...(moveOffset
           ? { moveX: moveOffset.x, moveY: moveOffset.y }
           : {}),
@@ -4169,7 +4606,17 @@ export function createAnnotationEditor({
     const page = state.pages.find((item) => item.id === state.currentId) || state.pages[0];
     if (!page?.annotations?.length) return;
     commit(() => {
-      page.annotations = [];
+      const removedTextIds = new Set(
+        page.annotations
+          .filter((annotation) => annotation.type === "text")
+          .map((annotation) => annotation.id)
+      );
+      page.annotations = page.annotations.filter((annotation) =>
+        isTextMarkAnnotation(annotation)
+          ? annotation.textTarget?.kind !== "annotation" ||
+            !removedTextIds.has(annotation.textTarget.id)
+          : false
+      );
       state.textSelection = null;
     });
     renderInspector();

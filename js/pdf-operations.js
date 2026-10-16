@@ -60,9 +60,21 @@ export function createPdfOperations({
         if (state.selected.has(page.id)) {
           const copy = { ...page, id: newId() };
           if (page.annotations) {
-            copy.annotations = structuredClone(page.annotations).map((annotation) => ({
+            const annotations = structuredClone(page.annotations);
+            const annotationIds = new Map(
+              annotations.map((annotation) => [annotation.id, newId()])
+            );
+            copy.annotations = annotations.map((annotation) => ({
               ...annotation,
-              id: newId(),
+              id: annotationIds.get(annotation.id),
+              ...(annotation.textTarget?.kind === "annotation"
+                ? {
+                    textTarget: {
+                      ...annotation.textTarget,
+                      id: annotationIds.get(annotation.textTarget.id) || annotation.textTarget.id,
+                    },
+                  }
+                : {}),
             }));
           }
           pages.push(copy);
