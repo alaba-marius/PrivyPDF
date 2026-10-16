@@ -3359,13 +3359,13 @@ a.bento-card:hover {
   stroke: transparent;
 }
 
-.editor-body:not([data-annotation-tool="none"]):not([data-annotation-tool="eraser"]):not([data-annotation-tool="highlight"]):not([data-annotation-tool^="annotate-"]):not([data-annotation-tool="stamp-place"]):not([data-annotation-tool="signature-place"]) .annotation-hit-line {
+.editor-body:not([data-annotation-tool="none"]):not([data-annotation-tool="eraser"]):not([data-annotation-tool="highlight"]):not([data-annotation-tool^="annotate-"]):not([data-annotation-tool="stamp-place"]):not([data-annotation-tool="signature-place"]) .annotation-hit-line:not(.annotation-text-mark-hit) {
   pointer-events: stroke;
   cursor: move;
   touch-action: none;
 }
 
-.editor-body:not([data-annotation-tool="none"]):not([data-annotation-tool="eraser"]):not([data-annotation-tool="highlight"]):not([data-annotation-tool^="annotate-"]):not([data-annotation-tool="stamp-place"]):not([data-annotation-tool="signature-place"]) .annotation-mark.annotation-highlight {
+.editor-body:not([data-annotation-tool="none"]):not([data-annotation-tool="eraser"]):not([data-annotation-tool="highlight"]):not([data-annotation-tool^="annotate-"]):not([data-annotation-tool="stamp-place"]):not([data-annotation-tool="signature-place"]) .annotation-mark.annotation-highlight:not(.annotation-text-mark) {
   pointer-events: auto;
 }
 
