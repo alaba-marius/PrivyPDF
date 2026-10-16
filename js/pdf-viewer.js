@@ -6,6 +6,10 @@ import {
   horizontalScaleForAdvance,
   standardPdfFontKey,
 } from "./text-ranges.js";
+import {
+  independentTextRunCandidates,
+  textObjectSignature,
+} from "./text-runs.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.js";
 
@@ -698,14 +702,53 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
   let textRenderingMode = 0;
   let textRise = 0;
   let fillColorCommand = "0 g";
+  let strokeColorCommand = "0 G";
+  let extendedGraphicsState = "";
+  let clippingPathSignature = "";
+  let currentPathSignature = "";
+  const lineGraphicsState = new Map();
   let ctm = [1, 0, 0, 1, 0, 0];
   let textObject = null;
   const graphicsStateStack = [];
+  const saveGraphicsState = () => {
+    graphicsStateStack.push({
+      activeFontName,
+      activeFontSize,
+      horizontalScale,
+      characterSpacing,
+      wordSpacing,
+      textRenderingMode,
+      textRise,
+      fillColorCommand,
+      strokeColorCommand,
+      extendedGraphicsState,
+      clippingPathSignature,
+      lineGraphicsState: new Map(lineGraphicsState),
+      ctm: ctm.slice(),
+    });
+  };
+  let lastOperatorEnd = 0;
+  if (
+    tokens[0]?.type === "word" &&
+    asciiBytes(bytes, tokens[0].start, tokens[0].end) === "q"
+  ) {
+    saveGraphicsState();
+    lastOperatorEnd = tokens[0].end;
+  }
   for (let index = 0; index < tokens.length - 1; index++) {
     const operand = tokens[index];
     const operator = tokens[index + 1];
     if (operator.type !== "word") continue;
     const operatorName = asciiBytes(bytes, operator.start, operator.end);
+    const graphicsCommand = asciiBytes(bytes, lastOperatorEnd, operator.end);
+    lastOperatorEnd = operator.end;
+    if (["m", "l", "c", "v", "y", "h", "re"].includes(operatorName)) {
+      currentPathSignature += graphicsCommand;
+    } else if (operatorName === "W" || operatorName === "W*") {
+      clippingPathSignature += `${currentPathSignature}${graphicsCommand}`;
+    } else if (operatorName === "n") {
+      currentPathSignature = "";
+    }
     if (operatorName === "BT") {
       textObject = {
         startTokenIndex: index + 2,
@@ -762,18 +805,16 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         : null;
     } else if (operatorName === "cs" || operatorName === "sc" || operatorName === "scn") {
       fillColorCommand = null;
+    } else if (operatorName === "G" || operatorName === "RG" || operatorName === "K") {
+      strokeColorCommand = graphicsCommand;
+    } else if (operatorName === "CS" || operatorName === "SC" || operatorName === "SCN") {
+      strokeColorCommand = null;
+    } else if (operatorName === "gs") {
+      extendedGraphicsState += graphicsCommand;
+    } else if (["w", "J", "j", "M", "d", "ri", "i"].includes(operatorName)) {
+      lineGraphicsState.set(operatorName, graphicsCommand);
     } else if (operatorName === "q") {
-      graphicsStateStack.push({
-        activeFontName,
-        activeFontSize,
-        horizontalScale,
-        characterSpacing,
-        wordSpacing,
-        textRenderingMode,
-        textRise,
-        fillColorCommand,
-        ctm: ctm.slice(),
-      });
+      saveGraphicsState();
     } else if (operatorName === "Q") {
       const previous = graphicsStateStack.pop();
       if (previous) {
@@ -785,6 +826,13 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         textRenderingMode = previous.textRenderingMode;
         textRise = previous.textRise;
         fillColorCommand = previous.fillColorCommand;
+        strokeColorCommand = previous.strokeColorCommand;
+        extendedGraphicsState = previous.extendedGraphicsState;
+        clippingPathSignature = previous.clippingPathSignature;
+        lineGraphicsState.clear();
+        for (const [name, value] of previous.lineGraphicsState) {
+          lineGraphicsState.set(name, value);
+        }
         ctm = previous.ctm;
       }
     }
@@ -802,6 +850,13 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         textRenderingMode,
         textRise,
         fillColorCommand,
+        strokeColorCommand,
+        graphicsStateSignature: JSON.stringify([
+          strokeColorCommand,
+          extendedGraphicsState,
+          clippingPathSignature,
+          [...lineGraphicsState].sort(([left], [right]) => left.localeCompare(right)),
+        ]),
         textMatrix: textObject?.matrix?.slice() || null,
         ctm: ctm.slice(),
         textObject,
@@ -833,6 +888,13 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
         textRenderingMode,
         textRise,
         fillColorCommand,
+        strokeColorCommand,
+        graphicsStateSignature: JSON.stringify([
+          strokeColorCommand,
+          extendedGraphicsState,
+          clippingPathSignature,
+          [...lineGraphicsState].sort(([left], [right]) => left.localeCompare(right)),
+        ]),
         textMatrix: textObject?.matrix?.slice() || null,
         ctm: ctm.slice(),
         textObject,
@@ -847,44 +909,16 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       });
     }
   }
-  const variableTextStateOperands = new Map([
-    ["Tf", 2],
-    ["Tm", 6],
-    ["Tc", 1],
-    ["Tw", 1],
-    ["Tz", 1],
-    ["TL", 1],
-    ["Tr", 1],
-    ["Ts", 1],
-    ["Td", 2],
-    ["TD", 2],
-  ]);
   for (const show of showStrings) {
     if (!show.textObject) continue;
-    const ignored = new Set();
-    for (
-      let index = show.textObject.startTokenIndex;
-      index < show.showOperandIndex;
-      index++
-    ) {
-      const token = tokens[index];
-      if (token.type !== "word") continue;
-      const name = asciiBytes(bytes, token.start, token.end);
-      const operandCount = variableTextStateOperands.get(name);
-      if (operandCount === undefined) continue;
-      for (let operandIndex = Math.max(show.textObject.startTokenIndex, index - operandCount);
-        operandIndex < index;
-        operandIndex++) {
-        ignored.add(operandIndex);
-      }
-      ignored.add(index);
-    }
-    show.textObjectSignature = tokens
-      .slice(show.textObject.startTokenIndex, show.showOperandIndex)
-      .map((token, offset) => ({ token, index: show.textObject.startTokenIndex + offset }))
-      .filter(({ index }) => !ignored.has(index))
-      .map(({ token }) => `${token.type}:${asciiBytes(bytes, token.start, token.end)}`)
-      .join("|");
+    show.textObjectSignature = textObjectSignature(
+      tokens
+        .slice(show.textObject.startTokenIndex, show.showOperandIndex)
+        .map((token) => ({
+          type: token.type,
+          value: asciiBytes(bytes, token.start, token.end),
+        }))
+    );
   }
   const textRuns = [];
   for (let start = 0; start < showStrings.length; start++) {
@@ -922,12 +956,8 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
     }
   }
 
-  const closeEnough = (left, right, tolerance = 0.01) =>
-    Math.abs(left - right) <= tolerance;
-  const sameMatrix = (left, right) =>
-    left?.length === right?.length &&
-    left.every((value, index) => closeEnough(value, right[index], 0.001));
-  const sourceAdvanceFor = (part) => {
+  const standardMetricFontCache = new Map();
+  const sourceAdvanceFor = async (part) => {
     if (!part.fontName || !part.fontSize) return null;
     const fontReference = fonts?.get(PDFName.of(part.fontName.slice(1)));
     const font = fontReference && document.context.lookup(fontReference);
@@ -950,15 +980,35 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       const widthsValue = font.get(PDFName.of("Widths"));
       const widths = widthsValue && document.context.lookup(widthsValue)?.asArray?.();
       const firstChar = font.get(PDFName.of("FirstChar"))?.asNumber();
-      if (!widths || !Number.isFinite(firstChar)) return null;
-      for (const code of part.bytes) {
-        const widthToken = widths[code - firstChar];
-        if (!widthToken) return null;
-        const width = document.context.lookup(widthToken)?.asNumber?.();
-        if (!Number.isFinite(width)) return null;
-        glyphWidth += (width / 1000) * part.fontSize;
-        characterCount++;
-        if (code === 32) wordCount++;
+      if (widths && Number.isFinite(firstChar)) {
+        for (const code of part.bytes) {
+          const widthToken = widths[code - firstChar];
+          if (!widthToken) return null;
+          const width = document.context.lookup(widthToken)?.asNumber?.();
+          if (!Number.isFinite(width)) return null;
+          glyphWidth += (width / 1000) * part.fontSize;
+          characterCount++;
+          if (code === 32) wordCount++;
+        }
+      } else {
+        const baseFont = font.get(PDFName.of("BaseFont"))?.toString();
+        const standardFontKey = STANDARD_FONT_NAMES[baseFont];
+        const descriptorValue = font.get(PDFName.of("FontDescriptor"));
+        const descriptor = descriptorValue && document.context.lookup(descriptorValue);
+        const isEmbedded =
+          descriptor?.has(PDFName.of("FontFile")) ||
+          descriptor?.has(PDFName.of("FontFile2")) ||
+          descriptor?.has(PDFName.of("FontFile3"));
+        const value = decodeText(part);
+        if (!standardFontKey || isEmbedded || !value) return null;
+        let standardFont = standardMetricFontCache.get(standardFontKey);
+        if (!standardFont) {
+          standardFont = await document.embedFont(StandardFonts[standardFontKey]);
+          standardMetricFontCache.set(standardFontKey, standardFont);
+        }
+        glyphWidth = standardFont.widthOfTextAtSize(value, part.fontSize);
+        characterCount = [...value].length;
+        wordCount = (value.match(/ /g) || []).length;
       }
     }
     const spacing = characterCount * part.characterSpacing +
@@ -985,12 +1035,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       ],
     };
   };
-  const isStandaloneShow = (part) =>
-    part.textObject?.closed &&
-    part.textObject.showCount === 1 &&
-    part.textObject.matrixCount === 1 &&
-    part.textMatrix?.length === 6;
-  const multiRunCandidates = (edit) => {
+  const multiRunCandidates = async (edit) => {
     if (
       baseRotation % 360 !== 0 ||
       (model.rotation || 0) % 360 !== 0 ||
@@ -1007,94 +1052,23 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       y: crop.y + crop.height - edit.y * crop.height - (edit.fontSize || 0),
       width: edit.w * crop.width,
     };
-    const validRuns = [];
-    for (let start = 0; start < showStrings.length; start++) {
-      const first = showStrings[start];
-      if (!isStandaloneShow(first)) continue;
-      const firstText = decodeText(first);
-      if (!firstText || !edit.originalText.startsWith(firstText)) continue;
-      const firstPosition = showPosition(first);
-      if (
-        !firstPosition ||
-        firstPosition.xVector <= 0 ||
-        Math.abs(firstPosition.yVector) > 0.001
-      ) continue;
-
-      const parts = [];
-      let text = "";
-      let measuredWidth = 0;
-      let previous = null;
-      for (let index = start; index < showStrings.length; index++) {
-        const part = showStrings[index];
-        if (!isStandaloneShow(part)) break;
-        const partText = decodeText(part);
-        if (!partText) break;
-        const visiblePartText = partText.replace(/ +$/, "");
-        const omittedTrailingPadding =
-          visiblePartText.length > 0 &&
-          visiblePartText !== partText &&
-          part.bytes.length === partText.length &&
-          !(part.tjAdjustment || 0) &&
-          text + visiblePartText === edit.originalText;
-        const matchedPartText = omittedTrailingPadding ? visiblePartText : partText;
-        if (!edit.originalText.startsWith(text + matchedPartText)) break;
-        const position = showPosition(part);
-        const advance = sourceAdvanceFor(
-          omittedTrailingPadding
-            ? { ...part, bytes: part.bytes.slice(0, visiblePartText.length), tjAdjustment: 0 }
-            : part
-        );
-        if (!position || advance === null) break;
-        if (previous) {
-          const prior = previous.part;
-          const priorPosition = previous.position;
-          const expectedX = priorPosition.x + priorPosition.xVector * previous.advance;
-          const expectedY = priorPosition.y + priorPosition.yVector * previous.advance;
-          if (
-            part.fontName !== first.fontName ||
-            part.fontSize !== first.fontSize ||
-            part.horizontalScale !== first.horizontalScale ||
-            part.wordSpacing !== first.wordSpacing ||
-            part.textRenderingMode !== first.textRenderingMode ||
-            part.textRise !== first.textRise ||
-            part.fillColorCommand !== first.fillColorCommand ||
-            !sameMatrix(part.ctm, first.ctm) ||
-            !sameMatrix(part.textMatrix.slice(0, 4), first.textMatrix.slice(0, 4)) ||
-            !sameMatrix(position.linear, firstPosition.linear) ||
-            part.textObjectSignature !== first.textObjectSignature ||
-            !closeEnough(position.x, expectedX, 1.25) ||
-            !closeEnough(position.y, expectedY, 1.25)
-          ) break;
-        }
-        parts.push(part);
-        text += matchedPartText;
-        measuredWidth += advance;
-        previous = { part, position, advance };
-        if (text === edit.originalText && parts.length > 1) {
-          const widthTolerance = Math.max(1.25, expected.width * 0.01);
-          if (
-            closeEnough(firstPosition.x, expected.x, 1.25) &&
-            closeEnough(firstPosition.y, expected.y, 1.25) &&
-            closeEnough(measuredWidth, expected.width, widthTolerance)
-          ) {
-            validRuns.push({
-              ...first,
-              text,
-              parts: parts.slice(),
-              sourceCodes: parts.flatMap((part) => part.bytes),
-              tjAdjustment: parts.reduce(
-                (sum, part) => sum + (part.tjAdjustment || 0),
-                0
-              ),
-              measuredWidth,
-              multiOperation: true,
-            });
-          }
-          break;
-        }
+    return independentTextRunCandidates(
+      showStrings.map((part) => ({
+        ...part,
+        isStandaloneShow:
+          part.textObject?.closed &&
+          part.textObject.showCount === 1 &&
+          part.textObject.matrixCount === 1 &&
+          part.textMatrix?.length === 6,
+      })),
+      {
+        originalText: edit.originalText,
+        expected,
+        decodeText,
+        showPosition,
+        sourceAdvanceFor,
       }
-    }
-    return validRuns;
+    );
   };
 
   const replacements = new Map();
@@ -1110,7 +1084,7 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
     const matching = textRuns.filter((token) => token.text === edit.originalText);
     let target = matching[edit.occurrenceIndex || 0];
     if (!target) {
-      const multiMatches = multiRunCandidates(edit);
+      const multiMatches = await multiRunCandidates(edit);
       if (multiMatches.length > 1) {
         throw new Error(
           `Multiple PDF text-operation groups match "${edit.originalText}" at this position. The page was not changed.`
@@ -1136,6 +1110,11 @@ async function applyTextEdits(document, page, model, baseRotation = 0) {
       }
       throw new Error(
         `Couldn't safely locate "${edit.originalText}" as a single editable PDF text run. The page was not changed.`
+      );
+    }
+    if (target.independentlyPositioned && targetFormattingRanges.length) {
+      throw new Error(
+        "Character-range formatting cannot preserve independently positioned source glyph spacing safely. The PDF was not changed."
       );
     }
     if (!target.fontName) {
