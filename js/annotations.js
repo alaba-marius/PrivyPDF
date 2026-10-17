@@ -1,7 +1,15 @@
 import * as pdfjs from "/vendor/pdfjs/pdf.min.js";
 import { icon } from "./icons.js";
 import { validateTextEdit } from "./pdf-viewer.js";
-import { isTextMarkAnnotation, TEXT_MARK_TOOLS } from "./text-marks.js";
+import {
+  isTextMarkAnnotation,
+  canUseStrikeSelectionMetrics,
+  fontMetricStrikeCenterY,
+  hasCompatibleSingleBaselineRects,
+  refreshStrikeMarkSvgLines,
+  textMarkLineY,
+  TEXT_MARK_TOOLS,
+} from "./text-marks.js";
 import {
   applyFormattingRange,
   formattingTextSegments,
@@ -32,6 +40,26 @@ export function selectFromEvent(state, id, event, indexOf, renderSelection) {
 }
 
 const clamp = (value) => Math.max(0, Math.min(1, value));
+
+function textMarkDiagnosticsEnabled() {
+  return typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("text-mark-diagnostics") === "1";
+}
+
+function reportTextMarkDiagnostics(details) {
+  if (textMarkDiagnosticsEnabled()) {
+    console.info("[PrivyPDF text-mark diagnostics]", details);
+  }
+}
+
+export function renderFormattedTextAndRefreshStrikeMarks(
+  textContent,
+  renderText,
+  refreshStrikeMarks
+) {
+  if (textContent) renderText(textContent);
+  refreshStrikeMarks();
+}
 
 function screenToBaseline(point, rotation) {
   switch (rotation % 360) {
@@ -250,11 +278,136 @@ function resolveFontFamily(style, fontMetadata) {
     : "Arial, sans-serif";
 }
 
+function setStrikeMetricsDataset(element, metrics) {
+  if (!metrics) return;
+  element.dataset.strikeBaselineY = String(metrics.baselineY);
+  element.dataset.strikeFontSize = String(metrics.fontSize);
+  element.dataset.strikeAscent = String(metrics.ascent);
+  element.dataset.strikeDescent = String(metrics.descent);
+  element.dataset.strikeVerticalDirection = String(metrics.verticalDirection);
+  element.dataset.strikePageHeight = String(metrics.pageHeight);
+  element.dataset.strikeFontFamily = metrics.fontFamily;
+  element.dataset.strikeBold = String(metrics.bold === true);
+  element.dataset.strikeItalic = String(metrics.italic === true);
+}
+
+function strikeMetricsFromDataset(element) {
+  const metrics = {
+    baselineY: Number(element?.dataset.strikeBaselineY),
+    fontSize: Number(element?.dataset.strikeFontSize),
+    ascent: Number(element?.dataset.strikeAscent),
+    descent: Number(element?.dataset.strikeDescent),
+    verticalDirection: Number(element?.dataset.strikeVerticalDirection),
+    pageHeight: Number(element?.dataset.strikePageHeight),
+    fontFamily: element?.dataset.strikeFontFamily,
+    bold: element?.dataset.strikeBold === "true",
+    italic: element?.dataset.strikeItalic === "true",
+  };
+  return [
+    metrics.baselineY,
+    metrics.fontSize,
+    metrics.ascent,
+    metrics.descent,
+    metrics.verticalDirection,
+    metrics.pageHeight,
+  ].every(Number.isFinite) &&
+    typeof metrics.fontFamily === "string" &&
+    metrics.fontFamily.length > 0
+    ? metrics
+    : null;
+}
+
 function editorFontFamily(fontFamily) {
   if (fontFamily === "Helvetica") return "Arial, sans-serif";
   if (fontFamily === "TimesRoman") return '"Times New Roman", serif';
   if (fontFamily === "Courier") return '"Courier New", monospace';
   return fontFamily || "Arial, sans-serif";
+}
+
+export function renderIndependentGlyphPreview(
+  root,
+  layout,
+  annotation,
+  page,
+  scale
+) {
+  if (!layout?.glyphs?.length) return false;
+  if (
+    !Number.isFinite(layout.cropWidth) ||
+    !Number.isFinite(layout.cropHeight) ||
+    layout.cropWidth <= 0 ||
+    layout.cropHeight <= 0 ||
+    !Number.isFinite(page.width) ||
+    !Number.isFinite(page.height) ||
+    !Number.isFinite(scale) ||
+    scale <= 0
+  ) {
+    throw new Error("The independently positioned text preview geometry is invalid.");
+  }
+  const glyphText = layout.glyphs.map((glyph) => glyph.character).join("");
+  if (glyphText !== annotation.text) {
+    throw new Error("The independently positioned text preview no longer matches its source text.");
+  }
+  const measure = document.createElement("canvas").getContext("2d");
+  if (!measure) {
+    throw new Error("A canvas context is required to measure the text preview safely.");
+  }
+  const fragment = document.createDocumentFragment();
+  const pageLeft = annotation.x * page.width;
+  const pageTop = annotation.y * page.height;
+  for (const glyph of layout.glyphs) {
+    const size = glyph.fontSize * scale;
+    const family = editorFontFamily(glyph.fontFamily || annotation.fontFamily);
+    const font = `${glyph.italic ? "italic" : "normal"} ${
+      glyph.bold ? "bold" : "normal"
+    } ${size}px ${family}`;
+    measure.font = font;
+    const metrics = measure.measureText(glyph.character);
+    if (
+      !Number.isFinite(metrics.width) ||
+      metrics.width <= 0 ||
+      !Number.isFinite(glyph.advance) ||
+      glyph.advance <= 0 ||
+      !Number.isFinite(glyph.x) ||
+      !Number.isFinite(glyph.baselineY)
+    ) {
+      throw new Error("The independently positioned text preview has incomplete glyph metrics.");
+    }
+    const glyphLeft =
+      ((glyph.x - layout.cropX) / layout.cropWidth) * page.width - pageLeft;
+    const baseline =
+      ((layout.cropY + layout.cropHeight - glyph.baselineY) / layout.cropHeight) *
+        page.height -
+      pageTop;
+    const span = document.createElement("span");
+    span.dataset.glyphStart = String(glyph.start);
+    span.dataset.glyphEnd = String(glyph.end);
+    span.textContent = glyph.character;
+    Object.assign(span.style, {
+      position: "absolute",
+      left: `${glyphLeft * scale}px`,
+      top: `${(baseline * scale - (metrics.actualBoundingBoxAscent || size * 0.8))}px`,
+      font,
+      lineHeight: `${size}px`,
+      whiteSpace: "pre",
+      transform: `scaleX(${(glyph.advance * scale) / metrics.width})`,
+      transformOrigin: "left top",
+    });
+    if (glyph.color) span.style.color = glyph.color;
+    fragment.append(span);
+  }
+  root.replaceChildren(fragment);
+  root.dataset.independentGlyphPreview = "true";
+  Object.assign(root.style, {
+    position: "relative",
+    display: "block",
+    minWidth: "0",
+    width: "100%",
+    height: "100%",
+    whiteSpace: "normal",
+    transform: "none",
+  });
+  return true;
 }
 
 function findTableCells(items) {
@@ -1148,7 +1301,16 @@ export function createAnnotationEditor({
     return last ? { node: last, offset: last.textContent.length } : null;
   }
 
-  function renderFormattedText(root, text, ranges, scale, preserveSelection = false) {
+  function renderFormattedText(
+    root,
+    text,
+    ranges,
+    scale,
+    preserveSelection = false,
+    independentGlyphPreview = null,
+    annotation = null,
+    page = null
+  ) {
     const canRestoreSelection = preserveSelection &&
       !document.activeElement?.closest?.("#pdf-text-range-controls");
     const selection = canRestoreSelection ? window.getSelection() : null;
@@ -1166,6 +1328,34 @@ export function createAnnotationEditor({
       : focusInside
         ? rangeOffset(root, selection.focusNode, selection.focusOffset)
         : null;
+    if (
+      independentGlyphPreview &&
+      annotation &&
+      page &&
+      renderIndependentGlyphPreview(
+        root,
+        independentGlyphPreview,
+        annotation,
+        page,
+        scale
+      )
+    ) {
+      if (anchorOffset == null || focusOffset == null || !selection?.setBaseAndExtent) return;
+      const anchor = textOffsetPoint(root, anchorOffset);
+      const focus = textOffsetPoint(root, focusOffset);
+      if (anchor && focus) {
+        selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+      }
+      return;
+    }
+    delete root.dataset.independentGlyphPreview;
+    root.style.position = "";
+    root.style.display = "";
+    root.style.minWidth = "";
+    root.style.width = "";
+    root.style.height = "";
+    root.style.whiteSpace = "";
+    root.style.transform = "";
     const fragment = document.createDocumentFragment();
     for (const segment of formattingTextSegments(text, ranges)) {
       if (!segment.style) {
@@ -1995,18 +2185,111 @@ export function createAnnotationEditor({
       const offsets = textOffsetsInRange(range, target);
       if (!offsets) continue;
       const selectedRange = rangeForTextOffsets(offsets.content, offsets.start, offsets.end);
-      const segments = [...(selectedRange?.getClientRects() || [])]
-        .map((rect) => selectionRectToBaselineBox(rect, container, page))
-        .filter(Boolean);
+      const clientRects = [...(selectedRange?.getClientRects() || [])];
+      const pageRect = container.getBoundingClientRect();
+      const rectSegments = clientRects
+        .map((rect) => ({
+          rect,
+          segment: selectionRectToBaselineBox(rect, container, page),
+        }))
+        .filter((entry) => entry.segment);
+      const segments = rectSegments.map((entry) => entry.segment);
       const targetId = target.dataset.textTargetId;
       const targetKind = target.dataset.textTargetKind;
       if (!segments.length || !targetId || !["pdf", "annotation"].includes(targetKind)) continue;
-      annotations.push(createTextMarkup(
-        tool,
-        segments,
-        { kind: targetKind, id: targetId },
-        { start: offsets.start, end: offsets.end }
-      ));
+      const strikeCenterY = Number(
+        offsets.content.dataset.strikeCenterY ?? target.dataset.strikeCenterY
+      );
+      const strikeMetrics = strikeMetricsFromDataset(offsets.content) ||
+        strikeMetricsFromDataset(target);
+      const strikeGeometryVerified = canUseStrikeSelectionMetrics({
+        segmentCount: rectSegments.length,
+        rectangleCount: clientRects.length,
+        candidateCount: candidates.length,
+        targetId,
+        targetKind,
+        strikeMetrics,
+        rects: rectSegments.map(({ rect }) => rect),
+      });
+      const annotation = {
+        ...createTextMarkup(
+          tool,
+          segments,
+          { kind: targetKind, id: targetId },
+          { start: offsets.start, end: offsets.end }
+        ),
+        ...(tool === "annotate-strike" &&
+          strikeGeometryVerified &&
+          Number.isFinite(strikeCenterY) &&
+          strikeCenterY >= 0 &&
+          strikeCenterY <= 1
+          ? { strikeCenterY }
+          : {}),
+        ...(tool === "annotate-strike" &&
+          strikeGeometryVerified &&
+          strikeMetrics
+          ? { strikeMetrics }
+          : {}),
+        ...(tool === "annotate-strike"
+          ? { textTargetText: offsets.content.textContent || "" }
+          : {}),
+      };
+      annotations.push(annotation);
+      if (tool === "annotate-strike") {
+        reportTextMarkDiagnostics({
+          phase: "editor-selection",
+          annotationId: annotation.id,
+          sourceTarget: { kind: targetKind, id: targetId },
+          sourceText: offsets.content.textContent || "",
+          selectedText: selectedRange?.toString() || "",
+          textRange: { start: offsets.start, end: offsets.end },
+          pageRotation: page.rotation,
+          pageClientRect: {
+            left: pageRect.left,
+            top: pageRect.top,
+            width: pageRect.width,
+            height: pageRect.height,
+          },
+          rangeClientRects: rectSegments.map(({ rect, segment }, index) => ({
+            client: {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              width: rect.width,
+              height: rect.height,
+            },
+            pageRelative: {
+              left: (rect.left - pageRect.left) / pageRect.width,
+              top: (rect.top - pageRect.top) / pageRect.height,
+              right: (rect.right - pageRect.left) / pageRect.width,
+              bottom: (rect.bottom - pageRect.top) / pageRect.height,
+              width: rect.width / pageRect.width,
+              height: rect.height / pageRect.height,
+            },
+            storedSegment: segment,
+          })),
+          storedSegments: segments,
+          metricStrikeCenterY: annotation.strikeCenterY ?? null,
+          strikethrough: segments.map((segment, index) => {
+            const center = {
+              x: segment.x + segment.w / 2,
+              y: textMarkLineY(annotation, segment, page.formattingRanges || []),
+            };
+            const screenCenter = baselineToScreen(center, page.rotation);
+            return {
+              segmentIndex: index,
+              segmentHeight: segment.h,
+              normalizedCenter: center,
+              editorClientCenter: {
+                x: pageRect.left + screenCenter.x * pageRect.width,
+                y: pageRect.top + screenCenter.y * pageRect.height,
+              },
+              measurement: "Calculated from the stored segment; not glyph-ink measurement.",
+            };
+          }),
+        });
+      }
     }
 
     if (!annotations.length) {
@@ -2014,7 +2297,48 @@ export function createAnnotationEditor({
         .map((rect) => selectionRectToBaselineBox(rect, container, page))
         .filter(Boolean);
       const fallback = createTextMarkup(tool, fallbackSegments);
-      if (fallback) annotations.push(fallback);
+      if (fallback) {
+        annotations.push(fallback);
+        if (tool === "annotate-strike") {
+          const pageRect = container.getBoundingClientRect();
+          reportTextMarkDiagnostics({
+            phase: "editor-selection",
+            annotationId: fallback.id,
+            sourceTarget: null,
+            selectedText: range.toString(),
+            pageRotation: page.rotation,
+            rangeClientRects: [...range.getClientRects()].map((rect) => ({
+              client: {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
+              },
+              pageRelative: {
+                left: (rect.left - pageRect.left) / pageRect.width,
+                top: (rect.top - pageRect.top) / pageRect.height,
+                right: (rect.right - pageRect.left) / pageRect.width,
+                bottom: (rect.bottom - pageRect.top) / pageRect.height,
+                width: rect.width / pageRect.width,
+                height: rect.height / pageRect.height,
+              },
+            })),
+            storedSegments: fallbackSegments,
+            metricStrikeCenterY: fallback.strikeCenterY ?? null,
+            strikethrough: fallbackSegments.map((segment, index) => ({
+              segmentIndex: index,
+              segmentHeight: segment.h,
+              normalizedCenter: {
+                x: segment.x + segment.w / 2,
+                y: textMarkLineY(fallback, segment, page.formattingRanges || []),
+              },
+              measurement: "Calculated from the stored segment; not glyph-ink measurement.",
+            })),
+          });
+        }
+      }
       if (fallbackSegments.length) {
       toast("This text selection could not be linked to a text element; the mark will stay in place if the text changes.", {
         type: "error",
@@ -2758,9 +3082,7 @@ export function createAnnotationEditor({
       h: first.h,
     };
     if (updated.type === "draw") {
-      const lineY = updated.tool === "annotate-strike"
-        ? first.y + first.h * 0.52
-        : first.y + first.h * 0.9;
+      const lineY = textMarkLineY(updated, first);
       updated.points = updated.tool === "annotate-squiggle"
         ? Array.from({ length: 13 }, (_, index) => ({
             x: first.x + (first.w * index) / 12,
@@ -2843,6 +3165,7 @@ export function createAnnotationEditor({
     const resolved = [...range.getClientRects()]
       .map((rect) => selectionRectToBaselineBox(rect, pageContainer, page))
       .filter(Boolean);
+    if (!staticPreview) annotation.textTargetText = content.textContent || "";
     if (!resolved.length) return { segments: stored, changed: false };
     const changed = stored.length !== resolved.length || resolved.some((segment, index) =>
       ["x", "y", "w", "h"].some(
@@ -2919,9 +3242,7 @@ export function createAnnotationEditor({
     svg.setAttribute("preserveAspectRatio", "none");
     svg.style.pointerEvents = "none";
     for (const segment of segments) {
-      const lineY = annotation.tool === "annotate-strike"
-        ? segment.y + segment.h * 0.52
-        : segment.y + segment.h * 0.9;
+      const lineY = textMarkLineY(annotation, segment, page.formattingRanges || []);
       const points = annotation.tool === "annotate-squiggle"
         ? Array.from({ length: 13 }, (_, index) => ({
             x: segment.x + (segment.w * index) / 12,
@@ -2950,6 +3271,28 @@ export function createAnnotationEditor({
     });
     layer.append(svg);
     return changed;
+  }
+
+  function refreshStrikeMarkPositions(page) {
+    const pageElement = [...els.pages.children].find(
+      (element) => element.dataset.id === page.id
+    );
+    const layer = pageElement?.querySelector(".page-annotation-layer");
+    if (!layer) return;
+    for (const annotation of page.annotations || []) {
+      if (annotation.tool !== "annotate-strike" || !annotation.segments?.length) continue;
+      const svg = [...layer.querySelectorAll("svg[data-annotation-id]")].find(
+        (element) => element.dataset.annotationId === annotation.id
+      );
+      if (!svg) continue;
+      refreshStrikeMarkSvgLines(
+        svg,
+        annotation,
+        page.formattingRanges || [],
+        page.rotation,
+        formatSvgPoints
+      );
+    }
   }
 
   function renderLayer(layer, page, { scale = state.zoom, staticPreview = false } = {}) {
@@ -3341,16 +3684,32 @@ export function createAnnotationEditor({
           textContent.setAttribute("role", "textbox");
           textContent.setAttribute("aria-label", "Edit selected PDF text");
           textContent.setAttribute("spellcheck", "false");
+          setStrikeMetricsDataset(textContent, annotation.sourceStrikeMetrics);
+          const strikeCenterY = annotation.sourceStrikeMetrics
+            ? fontMetricStrikeCenterY(annotation.sourceStrikeMetrics)
+            : null;
+          if (Number.isFinite(strikeCenterY)) {
+            textContent.dataset.strikeCenterY = String(strikeCenterY);
+          }
           const formattingRanges = !staticPreview && annotation.sourceTextId
             ? rangesForTarget(page.id, annotation.sourceTextId)
             : [];
-          renderFormattedText(textContent, annotation.text, formattingRanges, scale);
+          renderFormattedText(
+            textContent,
+            annotation.text,
+            formattingRanges,
+            scale,
+            false,
+            textContent.isContentEditable ? null : annotation.independentGlyphPreview,
+            annotation,
+            page
+          );
           if (!staticPreview && annotation.validationError) {
             textContent.setAttribute("aria-invalid", "true");
             textContent.title = annotation.validationError;
           }
           textContent.style.font = `${mark.style.fontStyle} ${mark.style.fontWeight} ${mark.style.fontSize} ${mark.style.fontFamily}`;
-          if (measure) {
+          if (measure && !textContent.dataset.independentGlyphPreview) {
             measure.font = textContent.style.font;
             const contentWidth = measure.measureText(annotation.text).width;
             const availableWidth = Math.max(1, box.w * page.width * scale);
@@ -3917,6 +4276,31 @@ export function createAnnotationEditor({
         const box = getTextBox({ ...item, viewport }, page, scale);
         const fontMetadata = getPdfFontMetadata(pdfPage, item.fontName);
         const fontStyle = text.styles[item.fontName];
+        const tx = pdfjs.Util.transform(viewport.transform, item.transform);
+        const sourceFontSize = Math.hypot(tx[2], tx[3]);
+        const strikeMetrics =
+          Number.isFinite(fontStyle?.ascent) &&
+          Number.isFinite(fontStyle?.descent) &&
+          fontStyle.ascent > fontStyle.descent &&
+          Number.isFinite(sourceFontSize) &&
+          sourceFontSize > 0 &&
+          Math.abs(tx[0]) > 0.001 &&
+          Math.abs(tx[1]) <= 0.001 &&
+          Math.abs(tx[2]) <= 0.001 &&
+          Math.abs(tx[3]) > 0.001
+            ? {
+                baselineY: tx[5] / scale,
+                fontSize: sourceFontSize / scale,
+                ascent: fontStyle.ascent,
+                descent: fontStyle.descent,
+                verticalDirection: Math.sign(tx[3]),
+                pageHeight: page.height,
+                bold: fontMetadata?.bold === true,
+                italic: fontMetadata?.italic === true,
+                fontFamily: fontStyle.fontFamily ||
+                  resolveFontFamily(fontStyle, fontMetadata),
+              }
+            : null;
         const record = {
           id: `${itemIndex}-${item.str}`,
           textTargetId: `pdf:${page.sourceId}:${page.index}:${itemIndex}`,
@@ -3929,6 +4313,10 @@ export function createAnnotationEditor({
           occurrenceIndex,
           fontMetadata,
           fontStyle,
+          strikeMetrics,
+          strikeCenterY: strikeMetrics
+            ? fontMetricStrikeCenterY(strikeMetrics)
+            : null,
           fontSize: Math.max(6, (box.h * page.height * scale) / 1.25 / scale),
           box,
         };
@@ -4020,6 +4408,7 @@ export function createAnnotationEditor({
               sourceFontFamily: drag.item.fontStyle?.fontFamily || null,
               sourceBold: drag.item.fontMetadata?.bold ?? null,
               sourceItalic: drag.item.fontMetadata?.italic ?? null,
+              sourceStrikeMetrics: drag.item.strikeMetrics,
               fill: appearance?.fill,
               textColor: appearance?.color,
               sourceTextColor: appearance?.color || null,
@@ -4075,6 +4464,7 @@ export function createAnnotationEditor({
           sourceFontFamily: drag.item.fontStyle?.fontFamily || null,
           sourceBold: drag.item.fontMetadata?.bold ?? null,
           sourceItalic: drag.item.fontMetadata?.italic ?? null,
+          sourceStrikeMetrics: drag.item.strikeMetrics,
           fill: appearance?.fill,
           textColor: appearance?.color,
           sourceTextColor: appearance?.color || null,
@@ -4132,6 +4522,10 @@ export function createAnnotationEditor({
         span.style.fontWeight = item.fontMetadata?.bold ? "bold" : "normal";
         span.style.fontStyle = item.fontMetadata?.italic ? "italic" : "normal";
         span.dataset.pdfTextIndex = String(itemIndex);
+        if (Number.isFinite(item.strikeCenterY)) {
+          span.dataset.strikeCenterY = String(item.strikeCenterY);
+        }
+        setStrikeMetricsDataset(span, item.strikeMetrics);
         span.addEventListener("pointerdown", (event) => {
           if (state.annotationTool !== "select" || event.button !== 0) return;
           textDrag = {
@@ -4197,6 +4591,7 @@ export function createAnnotationEditor({
             sourceFontFamily: item.fontStyle?.fontFamily || null,
             sourceBold: item.fontMetadata?.bold ?? null,
             sourceItalic: item.fontMetadata?.italic ?? null,
+            sourceStrikeMetrics: item.strikeMetrics,
             fill: appearance?.fill,
             textColor: appearance?.color,
             sourceTextColor: appearance?.color || null,
@@ -4535,10 +4930,18 @@ export function createAnnotationEditor({
         sourceFontFamily: source.sourceFontFamily,
         sourceBold: source.sourceBold,
         sourceItalic: source.sourceItalic,
+        sourceStrikeMetrics: source.sourceStrikeMetrics,
         sourceTextColor: source.sourceTextColor,
         originalText: source.text,
         occurrenceIndex: source.occurrenceIndex,
         sourceTextId: selection.textTargetId,
+        sourceMatchGeometry: {
+          x: source.x,
+          y: source.y,
+          w: source.w,
+          h: source.h,
+          fontSize: source.fontSize,
+        },
       };
       const validationError = await textEditValidationError(page, textEdit);
       if (activeFormattingRange() !== selection || !state.pages.includes(page)) return;
@@ -4556,18 +4959,40 @@ export function createAnnotationEditor({
       selection.end,
       style
     );
-    commit(() => {
-      if (textEdit && !page.annotations?.some((item) => item.id === textEdit.id)) {
-        page.annotations = [...(page.annotations || []), textEdit];
+    if (!textEdit) return;
+    const nextPageRanges = [
+      ...existing.filter((range) => range.textTargetId !== selection.textTargetId),
+      ...nextRanges.map((range) => ({
+        ...range,
+        textTargetId: selection.textTargetId,
+        text: selection.text,
+      })),
+    ];
+    const previewValidation = await textEditValidationError(
+      page,
+      { ...textEdit },
+      {
+        includePreviewLayout: true,
+        formattingRanges: nextPageRanges,
       }
-      page.formattingRanges = [
-        ...existing.filter((range) => range.textTargetId !== selection.textTargetId),
-        ...nextRanges.map((range) => ({
-          ...range,
-          textTargetId: selection.textTargetId,
-          text: selection.text,
-        })),
-      ];
+    );
+    if (activeFormattingRange() !== selection || !state.pages.includes(page)) return;
+    if (previewValidation.error) {
+      toast(`This character formatting cannot be exported safely: ${previewValidation.error}`, { type: "error" });
+      return;
+    }
+    const updatedTextEdit = {
+      ...textEdit,
+      independentGlyphPreview: previewValidation.previewLayout,
+    };
+    commit(() => {
+      const annotationExists = page.annotations?.some((item) => item.id === textEdit.id);
+      page.annotations = annotationExists
+        ? page.annotations.map((item) =>
+            item.id === textEdit.id ? updatedTextEdit : item
+          )
+        : [...(page.annotations || []), updatedTextEdit];
+      page.formattingRanges = nextPageRanges;
     }, { render: false });
     const annotation = page.annotations?.find(
       (item) => item.type === "text-edit" && item.sourceTextId === selection.textTargetId
@@ -4580,15 +5005,20 @@ export function createAnnotationEditor({
           .find((mark) => mark.dataset.textTargetId === selection.textTargetId)
           ?.querySelector(".annotation-inline-edit-text")
       : null;
-    if (textContent) {
-      renderFormattedText(
-        textContent,
+    renderFormattedTextAndRefreshStrikeMarks(
+      textContent,
+      (content) => renderFormattedText(
+        content,
         annotation.text,
         nextRanges,
         state.zoom,
-        { start: selection.start, end: selection.end }
-      );
-    }
+        { start: selection.start, end: selection.end },
+        annotation.independentGlyphPreview,
+        annotation,
+        page
+      ),
+      () => refreshStrikeMarkPositions(page)
+    );
     renderInspector();
   }
 
@@ -4628,10 +5058,14 @@ export function createAnnotationEditor({
     updateFormattingRange({ color: event.currentTarget.value });
   });
 
-  async function textEditValidationError(page, annotation) {
+  async function textEditValidationError(
+    page,
+    annotation,
+    { includePreviewLayout = false, formattingRanges: formattingRangesOverride } = {}
+  ) {
     const finishBusy = beginBusy("Checking in-place text edit…");
     try {
-      let formattingRanges = page.formattingRanges || [];
+      let formattingRanges = formattingRangesOverride ?? page.formattingRanges ?? [];
       if (
         annotation.type === "text-edit" &&
         annotation.sourceTextId &&
@@ -4671,12 +5105,20 @@ export function createAnnotationEditor({
           annotation,
         ],
       };
-      await validateTextEdit(candidate, state.sources, annotation.id);
-      return null;
+      const previewLayout = await validateTextEdit(
+        candidate,
+        state.sources,
+        annotation.id,
+        { includePreviewLayout }
+      );
+      return includePreviewLayout
+        ? { error: null, previewLayout }
+        : null;
     } catch (error) {
-      return error instanceof Error
+      const message = error instanceof Error
         ? error.message
         : "The in-place text edit could not be validated.";
+      return includePreviewLayout ? { error: message, previewLayout: null } : message;
     } finally {
       finishBusy();
     }
@@ -4741,10 +5183,22 @@ export function createAnnotationEditor({
         sourceFontFamily: selection.sourceFontFamily,
         sourceBold: selection.sourceBold,
         sourceItalic: selection.sourceItalic,
+        sourceStrikeMetrics: selection.sourceStrikeMetrics,
         sourceTextColor: selection.sourceTextColor,
         originalText: selection.text,
         occurrenceIndex: selection.occurrenceIndex,
         ...(selection.textTargetId ? { sourceTextId: selection.textTargetId } : {}),
+        ...(selection.textTargetId
+          ? {
+              sourceMatchGeometry: {
+                x: selection.x,
+                y: selection.y,
+                w: selection.w,
+                h: selection.h,
+                fontSize: selection.fontSize,
+              },
+            }
+          : {}),
         ...(moveOffset
           ? { moveX: moveOffset.x, moveY: moveOffset.y }
           : {}),

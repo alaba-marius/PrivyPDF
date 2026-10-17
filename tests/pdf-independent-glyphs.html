@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDF independent-glyph formatting regression</title>
+    <style>
+      body { font: 16px system-ui, sans-serif; margin: 2rem; }
+      #results { white-space: pre-wrap; }
+      canvas { border: 1px solid #888; display: block; margin: 1rem 0; }
+      .pass { color: #176b2b; }
+      .fail { color: #a21c1c; }
+    </style>
+  </head>
+  <body>
+    <h1>PDF independent-glyph formatting regression</h1>
+    <p>This browser test verifies independently positioned glyph formatting and checks strikethrough placement against reopened-PDF glyph ink.</p>
+    <pre id="results">Running…</pre>
+    <div id="renders"></div>
+    <script type="module" src="./pdf-independent-glyphs.test.js"></script>
+  </body>
+</html>
