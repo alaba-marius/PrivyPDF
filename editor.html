@@ -5,37 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
-    <title>The editor is coming back soon — PrivyPDF</title>
-    <meta name="description" content="The PrivyPDF editor is being rebuilt from scratch and will be back soon. No uploads, ever." />
+    <title>Editor · PrivyPDF</title>
+    <meta name="description" content="Organize PDF pages entirely in your browser: rotate, duplicate, extract and delete pages, with full undo. No uploads, ever." />
     <meta name="referrer" content="no-referrer" />
     <link rel="icon" href="/assets/privypdf-icon.png" type="image/png" />
     <link rel="preload" href="/vendor/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/css/main.css" />
-    <script type="module" src="/js/site.js"></script>
+    <link rel="stylesheet" href="/css/editor.css" />
     <script type="module" src="/js/editor.js"></script>
   </head>
   <body>
-    <header data-navbar></header>
-
-    <main>
-      <section class="section">
-        <div class="container">
-          <h1 class="hero-title">The editor is coming back soon</h1>
-          <p class="hero-sub">The PrivyPDF editor is being rebuilt from scratch and will be back soon. Your files never leave this device, and the privacy guarantees on this site still apply.</p>
-          <p><a class="btn btn-primary" href="/">Back to home <i data-icon="arrow-right"></i></a></p>
+    <div class="app">
+      <header class="top-bar" id="top-bar">
+        <div class="top-left">
+          <a class="logo-mark" href="/" aria-label="PrivyPDF home"><i data-icon="file-text"></i></a>
+          <div class="wordmark"><span>Privy</span><strong>PDF</strong></div>
         </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="container footer-inner">
-        <a class="footer-brand" href="/" data-logo aria-label="PrivyPDF home"></a>
-        <nav class="footer-links" aria-label="Footer">
-          <a href="/">Home</a>
-          <a href="/privacy.html">Privacy</a>
+        <div class="top-centre">
+          <div class="file-name" id="file-name">No document</div>
+          <span class="chip top-chip"><span class="chip-dot" aria-hidden="true"></span>On this device only</span>
+        </div>
+        <div class="top-right">
+          <button class="btn btn-outline btn-add" id="add-files" aria-label="Add files"><i data-icon="plus"></i><span>Add files</span></button>
+          <button class="icon-btn icon-btn--toolbar" id="btn-undo" aria-label="Undo"><i data-icon="undo"></i></button>
+          <button class="icon-btn icon-btn--toolbar" id="btn-redo" aria-label="Redo"><i data-icon="redo"></i></button>
+          <button class="btn btn-outline btn-add btn-download" id="btn-download" aria-label="Download"><i data-icon="download"></i><span>Download</span></button>
+          <button class="btn btn-outline btn-sm top-details" id="top-details" aria-label="Details" aria-expanded="false" aria-controls="right-panel"><i data-icon="chevron"></i><span>Details</span></button>
+        </div>
+      </header>
+      <div class="app-body">
+        <nav class="rail" id="rail">
+          <button class="rail-item is-active" aria-current="true" data-tool="pages"><i data-icon="layers"></i><span>Pages</span></button>
+          <button class="rail-item" data-tool="merge" id="rail-merge"><i data-icon="file-plus"></i><span>Merge</span></button>
+          <button class="rail-item" data-tool="images" id="rail-images"><i data-icon="image"></i><span>Images</span></button>
+          <button class="rail-item" data-tool="extract" id="rail-extract"><i data-icon="scissors"></i><span>Extract</span></button>
+          <div class="rail-divider" aria-hidden="true"></div>
+          <button class="rail-item rail-item--disabled" disabled data-tool="annotate"><i data-icon="pen"></i><span>Annotate</span><span class="rail-soon">Soon</span></button>
+          <button class="rail-item rail-item--disabled" disabled data-tool="text"><i data-icon="type"></i><span>Text</span><span class="rail-soon">Soon</span></button>
+          <button class="rail-item rail-item--disabled" disabled data-tool="sign"><i data-icon="signature"></i><span>Sign</span><span class="rail-soon">Soon</span></button>
+          <button class="rail-item rail-item--disabled" disabled data-tool="protect"><i data-icon="lock"></i><span>Protect</span><span class="rail-soon">Soon</span></button>
         </nav>
-        <span>Processed on your device. Always.</span>
+        <main class="workarea" id="workarea">
+          <div class="sub-toolbar" id="sub-toolbar">
+            <div class="sub-left">
+              <span class="sub-title">Pages</span>
+              <span class="sub-status" id="sub-status" aria-live="polite">No document</span>
+            </div>
+            <div class="sub-right">
+              <button class="btn btn-outline btn-sm" id="select-all">Select all</button>
+              <div class="size-wrap" id="size-wrap">
+                <button class="size-btn is-active" id="size-large">Large</button>
+                <button class="size-btn" id="size-small">Small</button>
+              </div>
+            </div>
+          </div>
+          <div class="grid-wrap" id="grid-wrap">
+            <div class="empty" id="empty-state">
+              <div class="empty-drop" id="empty-drop" role="button" tabindex="0" aria-label="Drop PDFs or images to begin, or click to choose files">
+                <div class="empty-icon"><i data-icon="file-plus"></i></div>
+                <div class="empty-title">Drop PDFs or images to begin</div>
+                <div class="empty-sub">or click to choose files · PDF, JPG and PNG</div>
+                <span class="chip">Processed on this device only</span>
+              </div>
+            </div>
+            <div class="page-grid" id="page-grid" role="listbox" aria-multiselectable="true">
+              <button class="add-tile" id="add-tile" aria-label="Add more files">
+                <i data-icon="plus"></i>
+                <span>Add tile</span>
+                <span>or click to choose</span>
+              </button>
+            </div>
+            <div class="loading" id="loading-state" hidden>
+              <div class="skeleton-grid" id="skeleton-grid"></div>
+            </div>
+            <div class="info-card" id="info-card" hidden>
+              <p>Page previews arrive in the next phase. Your files are loaded and stay on this device.</p>
+            </div>
+            <div class="drag-overlay" id="drag-overlay">
+              <div class="drag-text">Drop files to add them</div>
+            </div>
+          </div>
+          <div class="float-bar" id="float-bar" role="toolbar" aria-label="Selected pages" hidden>
+            <span class="float-label" id="float-label">0 selected</span>
+            <button class="float-btn" id="float-rotate" aria-label="Rotate selected pages"><i data-icon="rotate-cw"></i><span>Rotate</span></button>
+            <button class="float-btn" id="float-duplicate" aria-label="Duplicate selected pages"><i data-icon="copy"></i><span>Duplicate</span></button>
+            <button class="float-btn" id="float-extract" aria-label="Extract selected pages"><i data-icon="scissors"></i><span>Extract</span></button>
+            <button class="float-btn is-danger" id="float-delete" aria-label="Delete selected pages"><i data-icon="trash"></i><span>Delete</span></button>
+          </div>
+        </main>
+        <aside class="right-panel" id="right-panel">
+          <div class="panel-section">
+            <span class="panel-label">Document</span>
+            <div class="file-field">
+              <input class="file-input" id="doc-name" type="text" />
+              <span class="file-suffix">.pdf</span>
+            </div>
+            <div class="stat-row"><span>Pages</span><span class="stat-value mono" id="stat-pages">—</span></div>
+            <div class="stat-row"><span>Source files</span><span class="stat-value mono" id="stat-source">—</span></div>
+            <div class="stat-row"><span>Original size</span><span class="stat-value mono" id="stat-size">—</span></div>
+            <div class="source-files" id="source-files"></div>
+          </div>
+          <div class="panel-section">
+            <span class="panel-label">Export</span>
+            <div class="export-seg">
+              <button class="size-btn is-active" id="export-all">All pages</button>
+              <button class="size-btn" id="export-selected">Selected (0)</button>
+            </div>
+            <button class="btn btn-primary btn-download-pdf" id="download-pdf"><i data-icon="download"></i><span>Download PDF</span></button>
+            <p class="export-caption">Built in this tab. Nothing is uploaded.</p>
+          </div>
+          <div class="panel-section">
+            <div class="privacy-box">
+              <div class="privacy-header">
+                <i data-icon="shield-check"></i>
+                <span class="privacy-text"><span id="privacy-count">0</span> requests to other servers since you opened this file</span>
+              </div>
+              <p class="privacy-fine">Files held in memory only · Rendering by local pdf.js · Export built by local pdf-lib</p>
+              <a class="privacy-link" href="/privacy.html#verify">How to verify</a>
+            </div>
+          </div>
+          <div class="panel-section">
+            <span class="panel-label">Shortcuts</span>
+            <div class="shortcut-row"><span>Select range</span><kbd>Shift</kbd> <span>+ click</span></div>
+            <div class="shortcut-row"><span>Toggle page</span><kbd>Ctrl</kbd> <span>+ click</span></div>
+            <div class="shortcut-row"><span>Rotate</span><kbd>R</kbd></div>
+            <div class="shortcut-row"><span>Delete</span><kbd>Del</kbd></div>
+            <div class="shortcut-row"><span>Undo</span><kbd>Ctrl</kbd> <span>+ Z</span></div>
+          </div>
+        </aside>
+        <div class="drawer-scrim" id="drawer-scrim" hidden></div>
       </div>
-    </footer>
+    </div>
   </body>
 </html>

@@ -90,3 +90,83 @@ export async function takeFiles() {
     db.close();
   }
 }
+
+export const MAX_FILE_BYTES = 500 * 1024 * 1024;
+
+export async function readBytes(file, bytes = 1024) {
+  const slice = file.slice(0, Math.min(bytes, file.size));
+  const buffer = await slice.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+export function formatBytes(size) {
+  if (size == null) return "-";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return unit === 0 ? `${value} ${units[unit]}` : `${value.toFixed(2)} ${units[unit]}`;
+}
+
+export function baseName(path) {
+  return String(path).split(/[\\/\\\\]/).pop();
+}
+
+export async function downloadBytes(name, bytes) {
+  const blob = new Blob([bytes]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  document.body.appendChild(a);
+  a.href = url;
+  a.download = name;
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const MAGIC_PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]);
+const MAGIC_PNG = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+const MAGIC_JPEG = new Uint8Array([0xFF, 0xD8, 0xFF]);
+
+function startsWith(header, magic) {
+  if (header.length < magic.length) return false;
+  for (let i = 0; i < magic.length; i++) {
+    if (header[i] !== magic[i]) return false;
+  }
+  return true;
+}
+
+export async function validateFiles(files) {
+  const valid = [];
+  const rejected = [];
+  for (const file of files) {
+    try {
+      if (!file || file.size == null || file.size === 0) {
+        rejected.push({ file, reason: "empty file" });
+        continue;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        rejected.push({ file, reason: "too large" });
+        continue;
+      }
+      const header = await readBytes(file);
+      let accepted = false;
+      if (isPdf(file)) {
+        accepted = startsWith(header, MAGIC_PDF);
+        if (!accepted) rejected.push({ file, reason: "not a PDF" });
+      } else if (isImage(file)) {
+        accepted = startsWith(header, MAGIC_PNG) || startsWith(header, MAGIC_JPEG);
+        if (!accepted) rejected.push({ file, reason: "unsupported type" });
+      } else {
+        rejected.push({ file, reason: "unsupported type" });
+      }
+      if (accepted) valid.push(file);
+    } catch {
+      rejected.push({ file, reason: "unable to read" });
+    }
+  }
+  return { valid, rejected };
+}
