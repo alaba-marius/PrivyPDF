@@ -5,3 +5,4 @@ tests
 Dockerfile
 .dockerignore
 README.md
+REPORT.md

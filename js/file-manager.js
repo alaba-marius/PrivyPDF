@@ -1,5 +1,4 @@
 export const ACCEPT = "application/pdf,.pdf,image/png,image/jpeg";
-export const MAX_FILE_BYTES = 500 * 1024 * 1024;
 
 export const isPdf = (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 export const isImage = (file) => file.type === "image/png" || file.type === "image/jpeg";
@@ -15,22 +14,6 @@ export function pickFiles({ accept = ACCEPT, multiple = true } = {}) {
     input.addEventListener("cancel", () => resolve([]), { once: true });
     input.click();
   });
-}
-
-export async function readBytes(file) {
-  return new Uint8Array(await file.arrayBuffer());
-}
-
-export function downloadBytes(bytes, filename, type = "application/pdf") {
-  const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 export function setupDropTarget(el, onFiles) {
@@ -63,16 +46,6 @@ export function setupDropTarget(el, onFiles) {
   });
 }
 
-export function formatBytes(n) {
-  if (!n) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
-  return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
-}
-
-export function baseName(name) {
-  return name.replace(/\.[^.]+$/, "") || "document";
-}
 // Passes files from the landing page to the editor through IndexedDB.
 // The data stays in this browser and is deleted as soon as the editor reads it.
 const DB = "folio-local";
@@ -107,6 +80,7 @@ export async function stashFiles(files) {
 }
 
 export async function takeFiles() {
+  // The rebuilt editor calls this to receive files stashed by the landing page.
   const db = await openDb();
   try {
     const files = await tx(db, "readonly", (s) => s.get("pending"));

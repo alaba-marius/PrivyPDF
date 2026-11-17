@@ -5,11 +5,11 @@ const MENUS = [
     id: "product",
     label: "Product",
     items: [
-      { href: "/editor.html", icon: "layers", title: "Page editor", desc: "Reorder, rotate and delete pages" },
-      { href: "/editor.html", icon: "file-plus", title: "Merge PDFs", desc: "Combine files into one document" },
-      { href: "/editor.html", icon: "image", title: "Images to PDF", desc: "Turn JPG and PNG into pages" },
-      { href: "/editor.html", icon: "scissors", title: "Extract pages", desc: "Save a selection as a new PDF" },
-      { href: "/editor.html", icon: "pen", title: "Annotate", desc: "Text, drawing, highlights and erasing" },
+      { href: "/editor.html", icon: "layers", title: "Page editor", desc: "Reorder, rotate and delete pages", soon: true },
+      { href: "/editor.html", icon: "file-plus", title: "Merge PDFs", desc: "Combine files into one document", soon: true },
+      { href: "/editor.html", icon: "image", title: "Images to PDF", desc: "Turn JPG and PNG into pages", soon: true },
+      { href: "/editor.html", icon: "scissors", title: "Extract pages", desc: "Save a selection as a new PDF", soon: true },
+      { href: "/editor.html", icon: "pen", title: "Annotate", desc: "Text, drawing, highlights and erasing", soon: true },
     ],
   },
   {
