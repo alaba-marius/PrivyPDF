@@ -67,7 +67,17 @@ The CSP (`script-src 'self' 'wasm-unsafe-eval'`, `style-src 'self' 'unsafe-inlin
 
 On nginx (the Docker image), replicate the `_headers` directives with `add_header` in the server block; `_headers` itself is only honored by hosts that support it, which is why `vercel.json` carries the same headers for Vercel.
 
-### Tests
+### Design system
+
+PrivyPDF's design system lives in `css/theme.css` (added in D1). It defines the font face, design tokens, base layer and the `ds-` component layer. Every class is prefixed with `ds-` so it never collides with `css/main.css` or `css/editor.css`.
+
+- `css/theme.css` — tokens, base layer and `ds-` components. Consumed by `design-system.html` and by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels. It changes no existing page.
+- `design-system.html` — dev-only style guide (`meta robots noindex`). Shows every token and component at default, hover, focus and disabled states, on white and on a Studio Black band, plus landing-hero and editor-shell composites. Open it at `/design-system.html` when running locally. Not shipped to customers.
+- Existing pages and stylesheets — `index.html`, `privacy.html`, `editor.html`, `css/main.css` and `css/editor.css` are unchanged in D1 and stay as-is until the D2 and D3 remodels migrate them to the design system.
+
+`DESIGN.md` records the design direction the token block was built from.
+
+## Tests
 
 Test files are plain Node modules run with the built-in test runner (no install, no build step):
 

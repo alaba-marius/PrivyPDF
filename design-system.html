@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design system — PrivyPDF</title>
+<link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+  <div class="ds-container">
+    <h1 class="ds-text-section-heading">Design system</h1>
+    <p class="ds-prose">Dev-only style guide for the PrivyPDF design system in <code>css/theme.css</code>. Every component is prefixed with <code>ds-</code> so it never collides with <code>main.css</code> or <code>editor.css</code>. This page is not shipped to customers; it is consumed by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels. It loads only <code>css/theme.css</code> and contains no inline styles, no scripts, and no external requests.</p>
+
+    <!-- ================= Colors ================= -->
+    <section class="ds-section" id="colors">
+      <h2 class="ds-text-section-heading">Colors</h2>
+      <p class="ds-prose">Design tokens from the DESIGN.md Quick Start block, plus extensions marked below.</p>
+      <p class="ds-text-caption">Swatches marked <strong>(extension)</strong> are not in DESIGN.md. See the extension notes at the end of this section.</p>
+      <div class="ds-guide-grid">
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#ffffff" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Paper white</div><div class="ds-swatch-token">--color-paper-white</div><div class="ds-text-caption">#ffffff</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#000000" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Absolute ink</div><div class="ds-swatch-token">--color-absolute-ink</div><div class="ds-text-caption">#000000</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#161618" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Graphite</div><div class="ds-swatch-token">--color-graphite</div><div class="ds-text-caption">#161618</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#6a6a6b" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Soft charcoal</div><div class="ds-swatch-token">--color-soft-charcoal</div><div class="ds-text-caption">#6a6a6b</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#0f0f12" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Studio black</div><div class="ds-swatch-token">--color-studio-black</div><div class="ds-text-caption">#0f0f12</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#0d44e8" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Electric capture blue</div><div class="ds-swatch-token">--color-electric-capture-blue</div><div class="ds-text-caption">#0d44e8</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#174ef2" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Electric blue sweep</div><div class="ds-swatch-token">--color-electric-blue-sweep</div><div class="ds-text-caption">#174ef2</div></div></div>
+
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#f2552c" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Brand mark (extension)</div><div class="ds-swatch-token">--color-brand-mark</div><div class="ds-text-caption">#f2552c · logo mark only, never for UI</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="rgba(22, 22, 24, 0.10)" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Border soft (extension)</div><div class="ds-swatch-token">--color-border-soft</div><div class="ds-text-caption">rgba(22, 22, 24, 0.10)</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="rgba(22, 22, 24, 0.20)" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Border input (extension)</div><div class="ds-swatch-token">--color-border-input</div><div class="ds-text-caption">rgba(22, 22, 24, 0.20)</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="rgba(22, 22, 24, 0.05)" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Surface muted (extension)</div><div class="ds-swatch-token">--color-surface-muted</div><div class="ds-text-caption">rgba(22, 22, 24, 0.05)</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#b42318" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Danger (extension)</div><div class="ds-swatch-token">--color-danger</div><div class="ds-text-caption">#b42318 · destructive and error text on light surfaces</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#fca5a5" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Danger on dark (extension)</div><div class="ds-swatch-token">--color-danger-on-dark</div><div class="ds-text-caption">#fca5a5</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#e4e4e7" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">On dark (extension)</div><div class="ds-swatch-token">--color-on-dark</div><div class="ds-text-caption">#e4e4e7</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#a1a1aa" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">On dark muted (extension)</div><div class="ds-swatch-token">--color-on-dark-muted</div><div class="ds-text-caption">#a1a1aa</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#8b8b93" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">On dark faint (extension)</div><div class="ds-swatch-token">--color-on-dark-faint</div><div class="ds-text-caption">#8b8b93</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#6c8dff" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Dot on dark (extension)</div><div class="ds-swatch-token">--color-dot-on-dark</div><div class="ds-text-caption">#6c8dff</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#e4ecff" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Glow a (extension)</div><div class="ds-swatch-token">--color-glow-a</div><div class="ds-text-caption">#e4ecff</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#cddbff" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Glow b (extension)</div><div class="ds-swatch-token">--color-glow-b</div><div class="ds-text-caption">#cddbff</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#e8efff" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Hero glow (extension)</div><div class="ds-swatch-token">--color-hero-glow</div><div class="ds-text-caption">#e8efff</div></div></div>
+        <div class="ds-swatch"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><rect width="36" height="36" rx="8" fill="#0f0f12" stroke="#c4c4c8" stroke-width="1"/></svg><div><div class="ds-swatch-name">Rail (extension)</div><div class="ds-swatch-token">--color-rail</div><div class="ds-text-caption">#0f0f12 · same value as Studio black</div></div></div>
+      </div>
+    </section>
+
+    <!-- ================= Type scale ================= -->
+    <section class="ds-section" id="type">
+      <h2 class="ds-text-section-heading">Type scale</h2>
+      <p class="ds-prose">Utility classes document the DESIGN.md typography scale.</p>
+      <table class="ds-guide-table">
+        <thead><tr><th>Class</th><th>Token</th><th>Sample</th></tr></thead>
+        <tbody>
+          <tr><td class="ds-guide-value">.ds-text-micro-label</td><td class="ds-guide-value">--text-micro-label / --leading-micro-label / --tracking-micro-label</td><td class="ds-text-micro-label">Micro label · 13/16 · w550</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-caption</td><td class="ds-guide-value">--text-caption / --leading-caption / --tracking-caption</td><td class="ds-text-caption">Caption · 13/16 · w450</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-metadata</td><td class="ds-guide-value">--text-metadata / --leading-metadata / --tracking-metadata</td><td class="ds-text-metadata">Metadata · 14/20 · w550</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-body-small</td><td class="ds-guide-value">--text-body-small / --leading-body-small / --tracking-body-small</td><td class="ds-text-body-small">Body small · 14/20 · w450</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-nav</td><td class="ds-guide-value">--text-nav / --leading-nav / --tracking-nav</td><td class="ds-text-nav">Nav · 15/24 · w550</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-body</td><td class="ds-guide-value">--text-body / --leading-body / --tracking-body</td><td class="ds-text-body">Body · 18/30 · w450 · tracking 0.18px</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-feature-heading</td><td class="ds-guide-value">--text-feature-heading / --leading-feature-heading / --tracking-feature-heading</td><td class="ds-text-feature-heading">Feature heading · 20/28 · w600</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-section-heading</td><td class="ds-guide-value">--text-section-heading / --leading-section-heading / --tracking-section-heading</td><td class="ds-text-section-heading">Section heading · 40/48 · w600 · tracking -0.8px</td></tr>
+          <tr><td class="ds-guide-value">.ds-text-display</td><td class="ds-guide-value">--text-display / --leading-display / --tracking-display</td><td class="ds-text-display">Display · 60/66 · w600 · tracking -1.2px</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================= Spacing ================= -->
+    <section class="ds-section" id="spacing">
+      <h2 class="ds-text-section-heading">Spacing scale</h2>
+      <p class="ds-prose">Base unit <code>--spacing-unit: 4px</code>. All spacing tokens derive from it.</p>
+      <table class="ds-guide-table">
+        <thead><tr><th>Token</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td class="ds-guide-value">--spacing-4</td><td class="ds-guide-value">4px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-8</td><td class="ds-guide-value">8px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-12</td><td class="ds-guide-value">12px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-16</td><td class="ds-guide-value">16px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-20</td><td class="ds-guide-value">20px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-24</td><td class="ds-guide-value">24px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-32</td><td class="ds-guide-value">32px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-36</td><td class="ds-guide-value">36px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-40</td><td class="ds-guide-value">40px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-48</td><td class="ds-guide-value">48px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-64</td><td class="ds-guide-value">64px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-80</td><td class="ds-guide-value">80px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-120</td><td class="ds-guide-value">120px</td></tr>
+          <tr><td class="ds-guide-value">--spacing-200</td><td class="ds-guide-value">200px</td></tr>
+        </tbody>
+      </table>
+      <p class="ds-text-caption">Layout tokens: <code>--section-gap: 40px</code>, <code>--card-padding: 16px</code>, <code>--element-gap: 12px</code>.</p>
+    </section>
+
+    <!-- ================= Radii ================= -->
+    <section class="ds-section" id="radii">
+      <h2 class="ds-text-section-heading">Radii</h2>
+      <p class="ds-prose">Named radii map to the raw radius tokens.</p>
+      <table class="ds-guide-table">
+        <thead><tr><th>Named radius</th><th>Token</th><th>Value</th><th>Visual</th></tr></thead>
+        <tbody>
+          <tr><td class="ds-guide-value">--radius-cards</td><td class="ds-guide-value">--radius-2xl</td><td class="ds-guide-value">20px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="20" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-icons</td><td class="ds-guide-value">--radius-full-3</td><td class="ds-guide-value">9999px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="12" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-media</td><td class="ds-guide-value">--radius-2xl</td><td class="ds-guide-value">20px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="20" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-badges</td><td class="ds-guide-value">--radius-xl</td><td class="ds-guide-value">14px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="14" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-inputs</td><td class="ds-guide-value">--radius-xl</td><td class="ds-guide-value">14px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="14" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-buttons</td><td class="ds-guide-value">--radius-xl</td><td class="ds-guide-value">14px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="14" fill="#161618"/></svg></td></tr>
+          <tr><td class="ds-guide-value">--radius-iconcontrols</td><td class="ds-guide-value">--radius-3xl</td><td class="ds-guide-value">40px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="12" fill="#161618"/></svg></td></tr>
+        </tbody>
+      </table>
+      <p class="ds-text-caption">Raw tokens: <code>--radius-xl 14px</code>, <code>--radius-2xl 20px</code>, <code>--radius-3xl 40px</code>, <code>--radius-full 48px</code>, <code>--radius-full-2 56px</code>, <code>--radius-full-3 9999px</code>.</p>
+    </section>
+
+    <!-- ================= Shadows ================= -->
+    <section class="ds-section" id="shadows">
+      <h2 class="ds-text-section-heading">Shadows</h2>
+      <p class="ds-prose">Shadow tokens are <code>box-shadow</code> values.</p>
+      <table class="ds-guide-table">
+        <thead><tr><th>Token</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td class="ds-guide-value">--shadow-lg</td><td class="ds-guide-value">rgba(22, 22, 24, 0.02) 0 7px 20px -8px, rgba(22, 22, 24, 0.02) 0 29px 33px -4px, rgba(22, 22, 24, 0.05) 0 22px 30px -8px, rgba(22, 22, 24, 0.06) 0 0 0 0 0 1px</td></tr>
+          <tr><td class="ds-guide-value">--shadow-sm</td><td class="ds-guide-value">rgba(4, 24, 85, 0.28) 0 2px 6px -1px, rgba(66, 174, 247, 0.48) 0 6px 14px 0 inset</td></tr>
+          <tr><td class="ds-guide-value">--shadow-sm-2</td><td class="ds-guide-value">rgba(22, 22, 24, 0.2) 0 2px 6px -1px, rgba(22, 22, 24, 0.16) 0 0 0 0 0 1px</td></tr>
+          <tr><td class="ds-guide-value">--shadow-sm-3</td><td class="ds-guide-value">rgba(22, 22, 24, 0.5) 0 0 6px -2px, rgba(22, 22, 24, 0.25) 0 6px 4px -2px</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ================= Components ================= -->
+    <section class="ds-section" id="components">
+      <h2 class="ds-text-section-heading">Components</h2>
+      <p class="ds-prose">Every <code>ds-</code> component in default, hover (<code>ds-fs--hover</code>), focus (<code>ds-fs--focus</code>) and disabled (<code>ds-fs--disabled</code>) states, on white. A Studio Black band section follows with the dark-suited components. Forced-state classes are static stand-ins for <code>:hover</code> / <code>:focus-visible</code> / <code>:disabled</code>; the real states also work natively in the browser.</p>
+
+      <h3 class="ds-text-feature-heading">Navigation</h3>
+      <nav class="ds-nav ds-section">
+        <div class="ds-nav-brand">
+          <div class="ds-nav-mark"><svg class="ds-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="#fff" d="M2 2h12v12H2z"/></svg></div>
+          <div class="ds-nav-wordmark">PrivyPDF</div>
+        </div>
+        <div class="ds-nav-links">
+          <a href="#">Editor</a>
+          <a href="#">Privacy</a>
+        </div>
+      </nav>
+
+      <h3 class="ds-text-feature-heading">Buttons</h3>
+      <div class="ds-row ds-section">
+        <button class="ds-btn ds-btn--primary">Primary</button>
+        <button class="ds-btn ds-btn--primary ds-fs--hover">Primary · hover</button>
+        <button class="ds-btn ds-btn--primary ds-fs--focus">Primary · focus</button>
+        <button class="ds-btn ds-btn--primary ds-fs--disabled" disabled>Primary · disabled</button>
+        <button class="ds-btn ds-btn--outline">Outline</button>
+        <button class="ds-btn ds-btn--outline ds-fs--hover">Outline · hover</button>
+        <button class="ds-btn ds-btn--outline ds-fs--focus">Outline · focus</button>
+        <button class="ds-btn ds-btn--outline ds-fs--disabled" disabled>Outline · disabled</button>
+        <button class="ds-btn ds-btn--ghost">Ghost</button>
+        <button class="ds-btn ds-btn--ghost ds-fs--hover">Ghost · hover</button>
+        <button class="ds-btn ds-btn--ghost ds-fs--focus">Ghost · focus</button>
+        <button class="ds-btn ds-btn--ghost ds-fs--disabled" disabled>Ghost · disabled</button>
+        <button class="ds-btn ds-btn--sm ds-btn--primary">Primary small</button>
+        <button class="ds-btn ds-btn--sm ds-btn--outline">Outline small</button>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Icon button</h3>
+      <div class="ds-row ds-section">
+        <button class="ds-icon-btn" aria-label="Close"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="m6 6 8 8M14 6 6 14"/></svg></button>
+        <button class="ds-icon-btn ds-fs--hover" aria-label="Close · hover"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="m6 6 8 8M14 6 6 14"/></svg></button>
+        <button class="ds-icon-btn ds-fs--focus" aria-label="Close · focus"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="m6 6 8 8M14 6 6 14"/></svg></button>
+        <button class="ds-icon-btn ds-fs--disabled" disabled aria-label="Close · disabled"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="m6 6 8 8M14 6 6 14"/></svg></button>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Badges</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-badge-dark"><div class="ds-badge-dot" aria-hidden="true"></div>Private by default</div>
+        <div class="ds-badge-dark ds-fs--hover"><div class="ds-badge-dot" aria-hidden="true"></div>Dark · hover</div>
+        <div class="ds-badge-dark ds-fs--focus"><div class="ds-badge-dot" aria-hidden="true"></div>Dark · focus</div>
+        <div class="ds-badge-light">Light</div>
+        <div class="ds-badge-light ds-fs--hover">Light · hover</div>
+        <div class="ds-badge-light ds-fs--focus">Light · focus</div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Card</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-card">
+          <div class="ds-card-label">Feature</div>
+          <div class="ds-card-title">Card title</div>
+          <div class="ds-card-text">Supporting description of what the card does.</div>
+        </div>
+        <div class="ds-card ds-fs--hover">
+          <div class="ds-card-label">Feature</div>
+          <div class="ds-card-title">Card · hover</div>
+          <div class="ds-card-text">Supporting description of what the card does.</div>
+        </div>
+        <div class="ds-card ds-fs--focus">
+          <div class="ds-card-label">Feature</div>
+          <div class="ds-card-title">Card · focus</div>
+          <div class="ds-card-text">Supporting description of what the card does.</div>
+        </div>
+        <div class="ds-card ds-fs--disabled">
+          <div class="ds-card-label">Feature</div>
+          <div class="ds-card-title">Card · disabled</div>
+          <div class="ds-card-text">Supporting description of what the card does.</div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Field, glow and gradient word</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-field">
+          <p class="ds-prose">Field with radial glow backdrop.</p>
+        </div>
+        <div class="ds-field ds-fs--hover">
+          <p class="ds-prose">Field · hover.</p>
+        </div>
+        <div class="ds-field ds-fs--focus">
+          <p class="ds-prose">Field · focus.</p>
+        </div>
+      </div>
+      <p class="ds-section ds-text-feature-heading">Gradient word: <span class="ds-gradient-word">capture</span> blue sweep</p>
+
+      <h3 class="ds-text-feature-heading">Window</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-window">
+          <div class="ds-window-bar">document.pdf · 7 pages</div>
+          <div class="ds-window-body">
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+          </div>
+        </div>
+        <div class="ds-window ds-fs--hover">
+          <div class="ds-window-bar">document.pdf · 7 pages</div>
+          <div class="ds-window-body"><div class="ds-mini-page"></div><div class="ds-mini-page"></div><div class="ds-mini-page"></div></div>
+        </div>
+        <div class="ds-window ds-fs--focus">
+          <div class="ds-window-bar">document.pdf · 7 pages</div>
+          <div class="ds-window-body"><div class="ds-mini-page"></div><div class="ds-mini-page"></div><div class="ds-mini-page"></div></div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Dark band and proof panel</h3>
+      <div class="ds-band ds-section">
+        <div class="ds-row">
+          <div class="ds-col">
+            <div class="ds-text-section-heading" style>Dark band</div>
+            <p class="ds-prose">Studio black band with on-dark text.</p>
+          </div>
+          <div class="ds-col">
+            <button class="ds-btn ds-btn--primary">Primary</button>
+            <button class="ds-btn ds-btn--outline">Outline</button>
+          </div>
+        </div>
+      </div>
+      <div class="ds-row ds-section">
+        <div class="ds-proof-panel">
+          <div class="ds-proof-row"><span>Pages processed locally</span><span class="ds-proof-value">7</span></div>
+          <div class="ds-proof-row"><span>Uploads</span><span class="ds-proof-value">0</span></div>
+          <div class="ds-proof-row"><span>Trackers</span><span class="ds-proof-value">0</span></div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Inputs</h3>
+      <div class="ds-row ds-section">
+        <input class="ds-input" placeholder="Search documents">
+        <input class="ds-input ds-fs--focus" placeholder="Focused">
+        <input class="ds-input ds-fs--disabled" placeholder="Disabled" disabled>
+        <input class="ds-input-dark" placeholder="dark input">
+        <input class="ds-input-dark ds-fs--focus" placeholder="dark focused">
+        <input class="ds-input-dark ds-fs--disabled" placeholder="dark disabled" disabled>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Footer</h3>
+      <div class="ds-footer ds-section">
+        <div>© PrivyPDF — local only</div>
+        <div class="ds-row">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Help</a>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Prose</h3>
+      <div class="ds-prose ds-section">
+        This is body prose at the <code>ds-text-body</code> scale (18/30, w450, soft charcoal). It wraps naturally and includes <a href="#">a link</a>. Headings inside prose keep absolute ink.
+      </div>
+
+      <!-- ================= App / editor components ================= -->
+      <h3 class="ds-text-feature-heading">App topbar</h3>
+      <div class="ds-app-topbar ds-section">
+        <div class="ds-nav-brand">
+          <div class="ds-nav-mark"><svg class="ds-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="#0d44e8" d="M2 2h12v12H2z"/></svg></div>
+          <div class="ds-nav-wordmark">PrivyPDF</div>
+        </div>
+        <div class="ds-row">
+          <span class="ds-text-metadata">7 pages</span>
+          <button class="ds-icon-btn" aria-label="Share"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M14 12c2.5 0 4-1.5 4-4v-3M7 8l3-3 3 3M14 12v3c0 2.5-1.5 4-4 4M7 8l-3 3"/></svg></button>
+          <button class="ds-icon-btn ds-fs--hover" aria-label="Share · hover"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M14 12c2.5 0 4-1.5 4-4v-3M7 8l3-3 3 3M14 12v3c0 2.5-1.5 4-4 4M7 8l-3 3"/></svg></button>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Rail</h3>
+      <div class="ds-rail ds-section">
+        <button class="ds-rail-item ds-rail-item--active" aria-label="Home · active"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M3 12l7-7 7 7M10 15V5"/></svg><span>Home</span></button>
+        <button class="ds-rail-item" aria-label="Editor"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect width="14" height="14" x="3" y="3" fill="none" stroke="currentColor" stroke-width="2" rx="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M8 8l4 4M12 8l-4 4"/></svg><span>Editor</span></button>
+        <button class="ds-rail-item ds-rail-item--soon" aria-label="Annotate · coming soon"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M10 6v4M10 14v-4"/></svg><span>Annotate</span><span class="ds-rail-soon">soon</span></button>
+        <button class="ds-rail-item ds-rail-item--soon" aria-label="Settings · coming soon"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M10 6v4M10 14v-4M6 10h4M14 10h-4"/></svg><span>Settings</span><span class="ds-rail-soon">soon</span></button>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Sheets</h3>
+      <div class="ds-sheet-grid ds-section">
+        <div class="ds-sheet ds-sheet--selected">
+          <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 1</div>
+        </div>
+        <div class="ds-sheet">
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 2</div>
+        </div>
+        <div class="ds-sheet ds-sheet--selected">
+          <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 3</div>
+        </div>
+        <div class="ds-sheet">
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 4</div>
+        </div>
+        <div class="ds-sheet">
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 5</div>
+        </div>
+        <div class="ds-sheet">
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 6</div>
+        </div>
+        <div class="ds-sheet">
+          <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+          <div class="ds-sheet-number">Page 7</div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Check</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+        <div class="ds-check ds-fs--hover"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+        <div class="ds-check ds-fs--focus"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Float bar</h3>
+      <div class="ds-floatbar ds-section">
+        <span class="ds-floatbar-label">2 selected</span>
+        <button class="ds-floatbar-btn">Rotate</button>
+        <button class="ds-floatbar-btn">Duplicate</button>
+        <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--hover">Delete · hover</button>
+        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--focus">Delete · focus</button>
+        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--disabled" disabled>Delete · disabled</button>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Segmented control</h3>
+      <div class="ds-segmented ds-section">
+        <button class="ds-segment ds-segment--active">Large</button>
+        <button class="ds-segment">Small</button>
+        <button class="ds-segment ds-fs--hover">Small · hover</button>
+        <button class="ds-segment ds-fs--focus">Small · focus</button>
+        <button class="ds-segment ds-fs--disabled" disabled>Small · disabled</button>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Panel</h3>
+      <div class="ds-panel ds-section">
+        <div class="ds-panel-section">
+          <span class="ds-panel-label">Rotation</span>
+          <div class="ds-stat-row"><span>Selected</span><span class="ds-stat-value">2 pages</span></div>
+          <div class="ds-stat-row"><span>Total rotation</span><span class="ds-stat-value">180°</span></div>
+        </div>
+        <div class="ds-panel-section">
+          <span class="ds-panel-label">Actions</span>
+          <div class="ds-stat-row"><span>Undo</span><span class="ds-stat-value">available</span></div>
+          <div class="ds-stat-row"><span>Redo</span><span class="ds-stat-value">available</span></div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Stat row</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-stat-row"><span>Pages</span><span class="ds-stat-value">7</span></div>
+        <div class="ds-stat-row"><span>Selected</span><span class="ds-stat-value">2</span></div>
+        <div class="ds-stat-row"><span>Undo</span><span class="ds-stat-value">yes</span></div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Dropzone</h3>
+      <div class="ds-dropzone ds-section ds-sg-w-260 ds-sg-h-120">
+        <svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M10 2v16M4 10h12"/></svg>
+        <p class="ds-text-body-small">Drop a PDF here</p>
+      </div>
+      <div class="ds-dropzone ds-fs--hover ds-sg-w-260 ds-sg-h-120">
+        <svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M10 2v16M4 10h12"/></svg>
+        <p class="ds-text-body-small">Dropzone · hover</p>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Skeleton</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-skeleton ds-sg-w-120 ds-sg-h-20"></div>
+        <div class="ds-skeleton ds-fs--hover ds-sg-w-160 ds-sg-h-20"></div>
+        <div class="ds-skeleton ds-fs--focus ds-sg-w-100 ds-sg-h-32"></div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Keyboard shortcut</h3>
+      <div class="ds-row ds-section">
+        <span class="ds-kbd">Ctrl</span><span class="ds-kbd">Z</span> undo · <span class="ds-kbd">R</span> rotate · <span class="ds-kbd">Delete</span> remove
+      </div>
+
+      <h3 class="ds-text-feature-heading">Toast</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-toast">2 pages rotated</div>
+        <div class="ds-toast ds-fs--hover">Toast · hover</div>
+        <div class="ds-toast ds-fs--focus">Toast · focus</div>
+      </div>
+    </section>
+
+    <section class="ds-section" id="components-dark">
+      <h2 class="ds-text-section-heading">Components on Studio Black</h2>
+      <p class="ds-prose">Dark-suited components on a Studio Black (<code>--color-studio-black</code>) band. Light-surface components (badge-light, input, card, panel) are designed for white and are shown above.</p>
+      <div class="ds-band ds-section">
+        <div class="ds-row">
+          <div class="ds-col">
+            <button class="ds-btn ds-btn--primary">Primary</button>
+            <button class="ds-btn ds-btn--primary ds-fs--hover">Primary · hover</button>
+            <button class="ds-btn ds-btn--primary ds-fs--focus">Primary · focus</button>
+            <button class="ds-btn ds-btn--primary ds-fs--disabled" disabled>Primary · disabled</button>
+            <button class="ds-btn ds-btn--outline">Outline</button>
+            <button class="ds-btn ds-btn--outline ds-fs--hover">Outline · hover</button>
+            <button class="ds-btn ds-btn--outline ds-fs--focus">Outline · focus</button>
+            <button class="ds-btn ds-btn--outline ds-fs--disabled" disabled>Outline · disabled</button>
+          </div>
+          <div class="ds-col">
+            <button class="ds-icon-btn" aria-label="Menu"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 8h12M4 12h12"/></svg></button>
+            <button class="ds-icon-btn ds-fs--hover" aria-label="Menu · hover"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 8h12M4 12h12"/></svg></button>
+            <button class="ds-icon-btn ds-fs--focus" aria-label="Menu · focus"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 8h12M4 12h12"/></svg></button>
+            <button class="ds-icon-btn ds-fs--disabled" disabled aria-label="Menu · disabled"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 8h12M4 12h12"/></svg></button>
+            <div class="ds-badge-dark"><div class="ds-badge-dot" aria-hidden="true"></div>Private</div>
+            <div class="ds-badge-dark ds-fs--hover"><div class="ds-badge-dot" aria-hidden="true"></div>Badge · hover</div>
+            <input class="ds-input-dark" placeholder="dark input">
+            <input class="ds-input-dark ds-fs--focus" placeholder="dark focused">
+            <input class="ds-input-dark ds-fs--disabled" placeholder="dark disabled" disabled>
+          </div>
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-rail">
+          <button class="ds-rail-item ds-rail-item--active" aria-label="Editor · active"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect width="14" height="14" x="3" y="3" fill="none" stroke="currentColor" stroke-width="2" rx="2"/></svg><span>Editor</span></button>
+          <button class="ds-rail-item" aria-label="Home"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M3 12l7-7 7 7M10 15V5"/></svg><span>Home</span></button>
+          <button class="ds-rail-item ds-rail-item--soon" aria-label="Sign · coming soon"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M5 12l3-3 6 6-8-8"/></svg><span>Sign</span><span class="ds-rail-soon">soon</span></button>
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-sheet-grid">
+          <div class="ds-sheet ds-sheet--selected">
+            <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+            <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+            <div class="ds-sheet-number">Page 1</div>
+          </div>
+          <div class="ds-sheet">
+            <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+            <div class="ds-sheet-number">Page 2</div>
+          </div>
+          <div class="ds-sheet ds-sheet--selected">
+            <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+            <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+            <div class="ds-sheet-number">Page 3</div>
+          </div>
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-floatbar">
+          <span class="ds-floatbar-label">2 selected</span>
+          <button class="ds-floatbar-btn">Rotate</button>
+          <button class="ds-floatbar-btn">Duplicate</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--hover">Delete · hover</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--focus">Delete · focus</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--disabled" disabled>Delete · disabled</button>
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-segmented">
+          <button class="ds-segment ds-segment--active">Large</button>
+          <button class="ds-segment">Small</button>
+          <button class="ds-segment ds-fs--hover">Small · hover</button>
+          <button class="ds-segment ds-fs--focus">Small · focus</button>
+          <button class="ds-segment ds-fs--disabled" disabled>Small · disabled</button>
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-row">
+          <span class="ds-kbd">Ctrl</span><span class="ds-kbd">Z</span> undo ·
+          <span class="ds-kbd">R</span> rotate ·
+          <span class="ds-kbd">Delete</span> remove
+        </div>
+      </div>
+      <div class="ds-band ds-section">
+        <div class="ds-toast">2 pages rotated</div>
+      </div>
+    </section>
+
+    <!-- ================= Composite: landing hero ================= -->
+    <section class="ds-section" id="composite-hero">
+      <h2 class="ds-text-section-heading">Composite: landing hero</h2>
+      <p class="ds-prose">Real PrivyPDF wording. Badge, two-line headline with gradient last word, supporting copy, primary + outline buttons, guarantee line, then a field &gt; window with a mini-page grid.</p>
+      <div class="ds-container">
+        <span class="ds-badge-light">Private by default</span>
+        <h1 class="ds-text-display">Your PDFs stay<br>on this <span class="ds-gradient-word">device.</span></h1>
+        <p class="ds-prose">PrivyPDF is a private PDF toolkit that runs entirely in your browser. No uploads, no accounts, no trackers — your documents never leave your device.</p>
+        <div class="ds-row">
+          <button class="ds-btn ds-btn--primary">Open editor</button>
+          <button class="ds-btn ds-btn--outline">Privacy model</button>
+        </div>
+        <p class="ds-text-caption">Guarantee: nothing is uploaded. Files live only in the current tab and are discarded when you close or reload it.</p>
+      </div>
+      <div class="ds-field">
+        <div class="ds-window">
+          <div class="ds-window-bar">Preview · 7 pages</div>
+          <div class="ds-window-body">
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Composite: editor shell ================= -->
+    <section class="ds-section" id="composite-editor">
+      <h2 class="ds-text-section-heading">Composite: editor shell (static preview)</h2>
+      <p class="ds-prose">Topbar, rail, seven sheets (two selected), float bar and side panel. No live behavior — a static preview of the D3 editor surface in the design system.</p>
+      <div class="ds-container">
+        <div class="ds-shell">
+          <div class="ds-shell-main ds-pos-rel">
+            <div class="ds-app-topbar">
+              <div class="ds-nav-brand">
+                <div class="ds-nav-mark"><svg class="ds-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="#0d44e8" d="M2 2h12v12H2z"/></svg></div>
+                <div class="ds-nav-wordmark">PrivyPDF</div>
+              </div>
+              <div class="ds-row">
+                <span class="ds-text-metadata">7 pages · 2 selected</span>
+                <button class="ds-icon-btn" aria-label="Undo"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M3 12l7-7 7 7M10 15V5"/></svg></button>
+                <button class="ds-icon-btn" aria-label="Redo"><svg class="ds-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M17 8l-7 7 7 7M10 5V15"/></svg></button>
+              </div>
+            </div>
+            <div class="ds-sheet-grid">
+              <div class="ds-sheet ds-sheet--selected">
+                <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 1</div>
+              </div>
+              <div class="ds-sheet">
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 2</div>
+              </div>
+              <div class="ds-sheet ds-sheet--selected">
+                <div class="ds-check"><svg class="ds-icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path fill="none" stroke="#fff" stroke-width="2.5" d="M2 6l2 2 4-4"/></svg></div>
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 3</div>
+              </div>
+              <div class="ds-sheet">
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 4</div>
+              </div>
+              <div class="ds-sheet">
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 5</div>
+              </div>
+              <div class="ds-sheet">
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 6</div>
+              </div>
+              <div class="ds-sheet">
+                <div class="ds-shape-line"></div><div class="ds-shape-line"></div><div class="ds-shape-block"></div>
+                <div class="ds-sheet-number">Page 7</div>
+              </div>
+            </div>
+            <div class="ds-floatbar ds-floatbar-at">
+              <span class="ds-floatbar-label">2 selected</span>
+              <button class="ds-floatbar-btn">Rotate</button>
+              <button class="ds-floatbar-btn">Duplicate</button>
+              <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+            </div>
+          </div>
+          <aside class="ds-panel">
+            <div class="ds-panel-section">
+              <span class="ds-panel-label">Selection</span>
+              <div class="ds-stat-row"><span>Selected</span><span class="ds-stat-value">Page 1, Page 3</span></div>
+              <div class="ds-stat-row"><span>Count</span><span class="ds-stat-value">2</span></div>
+            </div>
+            <div class="ds-panel-section">
+              <span class="ds-panel-label">Rotation</span>
+              <div class="ds-stat-row"><span>Total</span><span class="ds-stat-value">180°</span></div>
+              <div class="ds-stat-row"><span>Direction</span><span class="ds-stat-value">clockwise</span></div>
+            </div>
+            <div class="ds-panel-section">
+              <span class="ds-panel-label">History</span>
+              <div class="ds-stat-row"><span>Undo</span><span class="ds-stat-value">available</span></div>
+              <div class="ds-stat-row"><span>Redo</span><span class="ds-stat-value">available</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <p class="ds-text-caption ds-sr-only">End of design system style guide.</p>
+  </div>
+</body>
+</html>

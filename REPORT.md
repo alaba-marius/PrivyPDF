@@ -540,3 +540,86 @@ node --test
 then open `/`, `/editor.html` and `/editor.html#demo` at 1280/900/375px and run the Manual QA checklist.
 
 Nothing was committed. Git was not touched.
+
+## Design D1 — design system (css/theme.css + design-system.html)
+
+Added a dev-only design system consumed by `design-system.html` and by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels. This phase changes NO existing page.
+
+### Files added
+- `css/theme.css` — font face (`Google Sans Flex` from `/vendor/fonts/GoogleSansFlex-Variable.ttf`), the DESIGN.md Quick Start tokens (same names), base layer, typography/spacing/radii/shadow/surface tokens, and the full `ds-` component layer.
+- `scripts/check-contrast.mjs` — dependency-free WCAG AA (4.5:1) contrast audit that reads `css/theme.css` tokens, resolves rgb/a and token references, composites rgba surfaces over their backdrop, and checks 12 required text/background pairs. Exits 1 on failure.
+- `design-system.html` — dev-only style guide (`meta robots noindex`). Shows every token (extensions labeled), the type/spacing/radii/shadow scales, every `ds-` component in default/hover/focus/disabled states on white and on a Studio Black band, plus landing-hero and editor-shell composites. Loads only `css/theme.css`; no inline script/style/`<style>`, no external requests (strict-CSP compatible).
+
+### Files edited
+- `README.md` — added "Design system" section.
+- `REPORT.md` — added this "Design D1" section.
+
+### Existing pages / stylesheets — NOT touched
+`index.html`, `privacy.html`, `editor.html`, `css/main.css`, `css/editor.css`, `js/*` are unchanged. `css/main.css` and `css/editor.css` stay until the D2/D3 remodels migrate to the design system.
+
+### Extensions beyond DESIGN.md (and why)
+All commented `extension, not in DESIGN.md` in `css/theme.css`:
+- `--color-brand-mark #f2552c` — logo mark only, never for UI (DESIGN.md keeps UI colors neutral)
+- `--color-border-soft rgba(22,22,24,0.10)` — subtle borders on dark surfaces
+- `--color-border-input rgba(22,22,24,0.20)` — input borders
+- `--color-surface-muted rgba(22,22,24,0.05)` — muted surface composited over white
+- `--color-danger #b42318` — destructive/error text on light surfaces
+- `--color-danger-on-dark #fca5a5` — destructive text on dark
+- `--color-on-dark #e4e4e7` — primary text on dark
+- `--color-on-dark-muted #a1a1aa` — secondary text on dark
+- `--color-on-dark-faint #8b8b93` — faint/tertiary text on dark
+- `--color-dot-on-dark #6c8dff` — status dot on dark badges
+- `--color-glow-a #e4ecff`, `--color-glow-b #cddbff` — field radial glow
+- `--color-hero-glow #e8efff` — hero glow
+- `--color-rail #0f0f12` — editor rail (same value as Studio black)
+
+### Check results
+
+`node scripts/check-contrast.mjs`:
+
+```
+Design token contrast check (WCAG AA, 4.5:1, normal text)
+==========================================================================================================================
+Pair                                      Foreground                              Background                Ratio  Status
+--------------------------------------------------------------------------------------------------------------------------
+Absolute Ink on white                     rgb(0, 0, 0)                            #ffffff                     21.00   PASS
+Graphite on white                         rgb(22, 22, 24)                         #ffffff                     18.07   PASS
+Soft Charcoal on white                    rgb(106, 106, 107)                      #ffffff                     5.40    PASS
+Soft Charcoal on surface-muted over white rgb(106, 106, 107)                      --color-surface-muted over  4.88    PASS
+white on Electric Capture Blue            rgb(255, 255, 255)                      rgb(13, 68, 232)            6.98    PASS
+Electric Capture Blue on white            rgb(13, 68, 232)                        #ffffff                     6.98    PASS
+white on Studio Black                     rgb(255, 255, 255)                      rgb(15, 15, 18)             19.14   PASS
+--color-on-dark on Studio Black           rgb(228, 228, 231)                      rgb(15, 15, 18)             15.08   PASS
+--color-on-dark-muted on Studio Black     rgb(161, 161, 170)                      rgb(15, 15, 18)             7.47    PASS
+--color-on-dark-faint on Studio Black     rgb(139, 139, 147)                      rgb(15, 15, 18)             5.66    PASS
+--color-danger-on-dark on Studio Black    rgb(252, 165, 165)                      rgb(15, 15, 18)             10.08   PASS
+--color-danger on white                   rgb(180, 35, 24)                        #ffffff                     6.57    PASS
+--------------------------------------------------------------------------------------------------------------------------
+All 12 pairs PASS (>= 4.5:1)
+```
+
+Exit code 0. All 12 required pairs pass WCAG AA 4.5:1 for normal text.
+
+`node --test`:
+
+```
+✔ tests 56
+ℹ pass 56
+ℹ fail 0
+```
+
+Exit code 0. All 56 tests pass; no existing test file changed.
+
+### Browser checks — NOT RUN
+No browser is available and starting a local server (`python3 -m http.server 8000`) is denied, so live-page checks were not executed:
+- `design-system.html` at 1280px and 375px (color swatches, type scale, components on white and on Studio Black band, both composites).
+- Strict CSP confirmation in the browser (no inline script/style, loads only `css/theme.css`).
+
+Unit tests do not prove UI behavior.
+
+### Uncertain items
+- Forced-state previews (`ds-fs--hover/focus/disabled`) are static stand-ins; real `:hover`/`:focus-visible`/`:disabled` also work natively but were not browser-verified.
+- `design-system.html` layout at phone width was not browser-verified.
+
+### Files modified / added (summary)
+Added: `css/theme.css`, `scripts/check-contrast.mjs`, `design-system.html`. Edited: `README.md`, `REPORT.md`. Nothing committed; git was not touched.
