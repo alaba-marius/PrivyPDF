@@ -4,21 +4,35 @@
 import { icon } from "../icons.js";
 
 function lineShape(w) {
-  return `<div class="shape line" style="width:${w}%"></div>`;
+  return `<div class="shape line" data-w="${w}"></div>`;
 }
 function headingShape(w) {
-  return `<div class="shape heading" style="width:${w}%"></div>`;
+  return `<div class="shape heading" data-w="${w}"></div>`;
 }
 function imageShape(h) {
   return `<div class="shape image variant-${h === 40 ? "small" : h === 90 ? "large" : "normal"}"></div>`;
 }
 function chartShape() {
   return `<div class="shape chart">
-    <div class="bar" style="height:40%"></div>
-    <div class="bar dark" style="height:65%"></div>
-    <div class="bar" style="height:50%"></div>
-    <div class="bar dark" style="height:90%"></div>
+    <div class="bar" data-h="40"></div>
+    <div class="bar dark" data-h="65"></div>
+    <div class="bar" data-h="50"></div>
+    <div class="bar dark" data-h="90"></div>
   </div>`;
+}
+
+// Apply data-* presentational attributes through the CSSOM. element.style
+// assignments are script-driven, so the strict CSP (style-src 'self', no
+// 'unsafe-inline') does not block them — unlike inline style attributes.
+function applySheetStyles(sheet) {
+  const rotate = sheet.dataset.rotate;
+  if (rotate !== undefined) sheet.style.setProperty("--rotate", `${rotate}deg`);
+  for (const shape of sheet.querySelectorAll("[data-w]")) {
+    shape.style.width = `${shape.dataset.w}%`;
+  }
+  for (const shape of sheet.querySelectorAll("[data-h]")) {
+    shape.style.height = `${shape.dataset.h}%`;
+  }
 }
 
 // Seven varied demo sheets so the demo grid isn't repetitive.
@@ -47,7 +61,7 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
 
   function sheetHtml(page, index) {
     const parts = DEMO_SHEETS[index % DEMO_SHEETS.length].join("");
-    return `<div class="sheet" style="--rotate: ${page.rotated}deg">${parts}</div>`;
+    return `<div class="sheet" data-rotate="${page.rotated}">${parts}</div>`;
   }
 
   // Cards keyed by page id for incremental renders; re-entrancy guard for
@@ -66,6 +80,7 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
     card.dataset.index = index;
     if (selected.has(page.id)) card.setAttribute("aria-selected", "true");
     card.insertAdjacentHTML("beforeend", sheetHtml(page, index));
+    applySheetStyles(card.querySelector(".sheet"));
     const num = document.createElement("span");
     num.className = "page-number";
     num.textContent = number;
@@ -146,8 +161,7 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
     card.dataset.index = index;
     card.setAttribute("aria-label", `Page ${number}`);
     card.querySelector(".page-number").textContent = number;
-    const sheet = card.querySelector(".sheet");
-    sheet.style.setProperty("--rotate", `${page.rotated}deg`);
+    applySheetStyles(card.querySelector(".sheet"));
   }
 
   gridEl.addEventListener("click", (event) => {

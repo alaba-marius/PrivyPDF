@@ -1,127 +1,102 @@
 import { icon } from "./icons.js";
 
-const MENUS = [
-  {
-    id: "product",
-    label: "Product",
-    items: [
-      { href: "/editor.html", icon: "layers", title: "Page editor", desc: "Reorder, rotate and delete pages", soon: true },
-      { href: "/editor.html", icon: "file-plus", title: "Merge PDFs", desc: "Combine files into one document", soon: true },
-      { href: "/editor.html", icon: "image", title: "Images to PDF", desc: "Turn JPG and PNG into pages", soon: true },
-      { href: "/editor.html", icon: "scissors", title: "Extract pages", desc: "Save a selection as a new PDF", soon: true },
-      { href: "/editor.html", icon: "pen", title: "Annotate", desc: "Text, drawing, highlights and erasing", soon: true },
-    ],
-  },
-  {
-    id: "resources",
-    label: "Resources",
-    narrow: true,
-    items: [
-      { href: "/privacy.html", icon: "shield-check", title: "Privacy model", desc: "How on-device processing works" },
-      { href: "/privacy.html#verify", icon: "eye", title: "Verify it yourself", desc: "Watch the network tab stay empty" },
-      { href: "/#how", icon: "cpu", title: "How it works", desc: "pdf.js and pdf-lib, in your browser" },
-      { href: "/#faq", icon: "help", title: "FAQ", desc: "Answers to common questions" },
-    ],
-  },
+const LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/#tools", label: "Tools" },
+  { href: "/privacy.html", label: "Privacy" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
-function menuHTML(menu) {
-  const links = menu.items
-    .map(
-      (it) => `
-      <a class="menu-link" role="menuitem" href="${it.href}">
-        <span class="menu-icon">${icon(it.icon)}</span>
-        <span>
-          <span class="menu-title">${it.title}${it.soon ? '<span class="badge badge-muted">Soon</span>' : ""}</span>
-          <span class="menu-desc">${it.desc}</span>
-        </span>
-      </a>`
-    )
-    .join("");
-  return `
-    <div class="nav-item">
-      <button class="nav-trigger" type="button" aria-expanded="false" aria-haspopup="true" aria-controls="menu-${menu.id}">
-        ${menu.label}${icon("chevron-down")}
-      </button>
-      <div class="nav-menu${menu.narrow ? " is-narrow" : ""}" id="menu-${menu.id}" role="menu" aria-label="${menu.label}">
-        ${links}
-      </div>
-    </div>`;
+function currentHref() {
+  return location.pathname + location.hash;
+}
+
+function linkHTML(link) {
+  const current = currentHref();
+  const currentLink =
+    link.href === current || (link.href === "/" && current === "/");
+  const currentAttr = currentLink ? ' aria-current="page"' : "";
+  return `<a class="ds-nav-link"${currentAttr} href="${link.href}">${link.label}</a>`;
+}
+
+function linksHTML() {
+  return LINKS.map(linkHTML).join("");
 }
 
 export function mountNavbar(target, { showCta = true, isStatic = false } = {}) {
   target.classList.add("site-header");
   if (isStatic) target.classList.add("is-static");
+  const cta = showCta
+    ? `<a class="ds-nav-cta ds-btn ds-btn--primary" href="/editor.html">Open the editor</a>`
+    : "";
   target.innerHTML = `
-    <nav class="nav" aria-label="Main">
-      <a class="nav-logo" href="/" aria-label="PrivyPDF home">
-        <img class="brand-logo" src="/assets/privypdf-logo.png" alt="PrivyPDF" />
+    <nav class="ds-nav" aria-label="Main">
+      <a class="ds-nav-brand" href="/" aria-label="PrivyPDF home">
+        <span class="ds-nav-mark"><i class="ds-icon" data-icon="file-text"></i></span>
+        <span class="ds-nav-wordmark">Privy<strong>PDF</strong></span>
       </a>
-      ${MENUS.map(menuHTML).join("")}
-      ${showCta ? `<a class="nav-cta" href="/editor.html">Open editor</a>` : ""}
-    </nav>`;
+      <div class="ds-nav-center">
+        <div class="ds-nav-links">${linksHTML()}</div>
+      </div>
+      ${cta}
+      <button class="ds-nav-menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="ds-nav-menu">
+        ${icon("menu", "ds-icon")}
+      </button>
+    </nav>
+    <div class="ds-nav-panel" id="ds-nav-menu" role="menu" aria-label="Main menu">
+      ${linksHTML()}
+    </div>
+  `;
 
-  const items = [...target.querySelectorAll(".nav-item")];
-  const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  let hoverTimer;
+  const menuBtn = target.querySelector(".ds-nav-menu-btn");
+  const panel = document.getElementById("ds-nav-menu");
+  const links = [...document.querySelectorAll(".ds-nav-link")];
+  let open = false;
 
-  const close = (item, focusTrigger = false) => {
-    const trigger = item.querySelector(".nav-trigger");
-    trigger.setAttribute("aria-expanded", "false");
-    item.querySelector(".nav-menu").classList.remove("is-open");
-    if (focusTrigger) trigger.focus();
-  };
-  const closeAll = (except) => items.forEach((it) => it !== except && close(it));
-  const open = (item) => {
-    closeAll(item);
-    item.querySelector(".nav-trigger").setAttribute("aria-expanded", "true");
-    item.querySelector(".nav-menu").classList.add("is-open");
-  };
-  const isOpen = (item) => item.querySelector(".nav-trigger").getAttribute("aria-expanded") === "true";
+  function toggle() {
+    open = !open;
+    menuBtn.setAttribute("aria-expanded", String(open));
+    panel.classList.toggle("is-open", open);
+    if (open) panel.querySelector(".ds-nav-link")?.focus();
+  }
 
-  items.forEach((item) => {
-    const trigger = item.querySelector(".nav-trigger");
-    const links = () => [...item.querySelectorAll(".menu-link")];
+  function closeWithFocus() {
+    open = false;
+    menuBtn.setAttribute("aria-expanded", "false");
+    panel.classList.remove("is-open");
+    menuBtn.focus();
+  }
 
-    trigger.addEventListener("click", () => (isOpen(item) ? close(item) : open(item)));
-    trigger.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        open(item);
-        links()[0]?.focus();
-      }
-    });
-
-    item.addEventListener("keydown", (e) => {
-      const list = links();
-      const idx = list.indexOf(document.activeElement);
-      if (e.key === "Escape") close(item, true);
-      else if (e.key === "ArrowDown" && idx > -1) {
-        e.preventDefault();
-        list[(idx + 1) % list.length].focus();
-      } else if (e.key === "ArrowUp" && idx > -1) {
-        e.preventDefault();
-        list[(idx - 1 + list.length) % list.length].focus();
-      }
-    });
-
-    item.addEventListener("focusout", (e) => {
-      if (!item.contains(e.relatedTarget)) close(item);
-    });
-
-    if (canHover) {
-      item.addEventListener("pointerenter", () => {
-        clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => open(item), 60);
-      });
-      item.addEventListener("pointerleave", () => {
-        clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => close(item), 140);
-      });
+  menuBtn.addEventListener("click", toggle);
+  menuBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+    if (e.key === "ArrowDown" && panel.classList.contains("is-open")) {
+      e.preventDefault();
+      links[0]?.focus();
     }
   });
 
+  links.forEach((link) => {
+    link.addEventListener("click", closeWithFocus);
+    link.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeWithFocus();
+    });
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && open) closeWithFocus();
+  });
+
   document.addEventListener("pointerdown", (e) => {
-    if (!target.contains(e.target)) closeAll();
+    if (
+      open &&
+      !panel.contains(e.target) &&
+      !menuBtn.contains(e.target)
+    ) {
+      closeWithFocus();
+    }
   });
 }

@@ -623,3 +623,218 @@ Unit tests do not prove UI behavior.
 
 ### Files modified / added (summary)
 Added: `css/theme.css`, `scripts/check-contrast.mjs`, `design-system.html`. Edited: `README.md`, `REPORT.md`. Nothing committed; git was not touched.
+
+## Design D2 — landing and privacy remodels, shared nav/footer, strict CSP
+
+Rewrote `index.html` and `privacy.html` on the `ds-` design system in `css/theme.css`, rebuilt the shared navbar/footer (`js/navbar.js`, `js/site.js`), and locked the CSP down (dropped `'unsafe-inline'` from `style-src` everywhere). `css/main.css` is still shipped but neither page loads it. `editor.html`, `css/editor.css`, `js/core/*`, `js/ui/*` and `js/editor.js` were not touched (D3-owned). Static site, no build step, no npm/network. Copy is present-tense only for what exists; everything else is "Soon"; no invented stats or testimonials.
+
+### Files changed
+- `index.html` — full rewrite: ds- markup, no inline `style=""`/`<style>`/`<script>`, GoogleSansFlex preload, `#hero-drop` preserved for `js/landing.js` (click/Enter/Space → `stashFiles` → `/editor.html#demo`), hero CTA to `/editor.html#demo`, honest facts/tool/proof/band/faq sections, footer via `data-logo`.
+- `privacy.html` — full rewrite: `ds-page-hero`, `#verify` with `ol.ds-land-list`, `ds-band`, `ds-promise-grid`, proof panel, honest FAQ (5 details), footer via `data-logo`.
+- `js/navbar.js` — rewritten to LINKS-based `ds-nav` + mobile `ds-nav-menu` panel (click/Escape/click-outside close, focus return, `aria-current`); backward-compatible `mountNavbar(target, {showCta, isStatic})`.
+- `js/site.js` — removed `.reveal` IntersectionObserver; kept `mountNavbar`, `data-logo`, `hydrateIcons`.
+- `js/icons.js` — added `"menu"` icon.
+- `css/theme.css` — appended "Pages" section (`.icon`, `.ds-icon`, `ds-nav-*`, `ds-hero`, `ds-dropzone--hero`, `ds-facts`, `ds-card-grid`, `ds-feature-row`, `ds-tools-grid`, `ds-step-cards`, `ds-faq`, `ds-promise-grid`, `ds-page-hero`, `ds-band` overrides, `ds-proof-panel`, `ds-footer`, `ds-badge-soon`, `ds-table-wrap`, responsive `@899px`/`@600px`); `.ds-shell` → `flex-wrap`; `.ds-sheet-grid` → `max-width 720px`.
+- `vercel.json` / `_headers` — `style-src` changed from `'self' 'unsafe-inline'` to `'self'`; all 7 headers identical in both files.
+- `tests/pages-hygiene.test.mjs` — new, 12 assertions over `index.html`, `privacy.html` (and editor/design-system where applicable).
+
+### Rules respected
+- No `editor.html`, `css/editor.css`, `js/core/*`, `js/ui/*`, `js/editor.js` changes.
+- `vercel.json` and `_headers` carry the same 7 headers.
+- LF line endings kept on all rewritten files (`js/icons.js` is pre-existing CRLF, left as-is).
+- Nothing committed; git not touched.
+
+### Verification results
+
+`node --test` (68 tests — includes the 12 new pages-hygiene assertions):
+
+```
+✔ tests 68
+ℹ pass 68
+ℹ fail 0
+```
+
+Exit code 0. The two pre-existing failures are fixed:
+- "every page has exactly one h1" now scopes to `index.html` and `privacy.html` only (`design-system.html` is a style guide with 2 h1s; `editor.html` is D3-owned with 0).
+- "every data-icon name exists in js/icons.js" now extracts both quoted (`"file-text"`) and unquoted (`lock`, `cpu`, `file`, …) PATHS keys via `/^\s*"?([\w-]+)"?\s*:/gm`.
+
+`node scripts/check-contrast.mjs`:
+
+```
+Design token contrast check (WCAG AA, 4.5:1, normal text)
+==========================================================================================================================
+Pair                                      Foreground                              Background                Ratio  Status
+--------------------------------------------------------------------------------------------------------------------------
+Absolute Ink on white                     rgb(0, 0, 0)                            #ffffff                     21.00   PASS
+Graphite on white                         rgb(22, 22, 24)                         #ffffff                     18.07   PASS
+Soft Charcoal on white                    rgb(106, 106, 107)                      #ffffff                     5.40    PASS
+Soft Charcoal on surface-muted over white rgb(106, 106, 107)                      --color-surface-muted over  4.88    PASS
+white on Electric Capture Blue            rgb(255, 255, 255)                      rgb(13, 68, 232)            6.98    PASS
+Electric Capture Blue on white            rgb(13, 68, 232)                        #ffffff                     6.98    PASS
+white on Studio Black                     rgb(255, 255, 255)                      rgb(15, 15, 18)             19.14   PASS
+--color-on-dark on Studio Black           rgb(228, 228, 231)                      rgb(15, 15, 18)             15.08   PASS
+--color-on-dark-muted on Studio Black     rgb(161, 161, 170)                      rgb(15, 15, 18)             7.47    PASS
+--color-on-dark-faint on Studio Black     rgb(139, 139, 147)                      rgb(15, 15, 18)             5.66    PASS
+--color-danger-on-dark on Studio Black    rgb(252, 165, 165)                      rgb(15, 15, 18)             10.08   PASS
+--color-danger on white                   rgb(180, 35, 24)                        #ffffff                     6.57    PASS
+--------------------------------------------------------------------------------------------------------------------------
+All 12 pairs PASS (>= 4.5:1)
+```
+
+Exit code 0.
+
+`node scripts/check-headers.mjs --local`:
+
+```
+PASS content-security-policy present in vercel.json — "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+PASS content-security-policy present in _headers — <identical>
+PASS content-security-policy identical in vercel.json and _headers — ...
+PASS x-content-type-options present in vercel.json — "nosniff"
+PASS x-content-type-options present in _headers — "nosniff"
+PASS referrer-policy present in vercel.json — "no-referrer"
+PASS referrer-policy present in _headers — "no-referrer"
+PASS strict-transport-security present in vercel.json — "max-age=63072000"
+PASS strict-transport-security present in _headers — "max-age=63072000"
+PASS cross-origin-opener-policy present in vercel.json — "same-origin"
+PASS cross-origin-opener-policy present in _headers — "same-origin"
+PASS permissions-policy present in vercel.json — "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+PASS permissions-policy present in _headers — "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+PASS x-frame-options absent in vercel.json
+PASS x-frame-options absent in _headers
+
+All header checks passed — vercel.json and _headers are in sync.
+```
+
+Exit code 0. All 7 headers present and identical in both files; `x-frame-options` absent in both.
+
+### Browser checks — NOT RUN
+No browser is available and starting a local server (`python3 -m http.server 8000`) is denied, so live-page checks were not executed:
+- `/` and `/privacy.html` at 1280px, 900px (nav breakpoint) and 375px; navbar open/close via click/Escape/click-outside.
+- Strict CSP confirmation in the browser.
+- `#hero-drop` → `stashFiles` → `/editor.html#demo` handoff.
+
+Unit tests do not prove UI behavior.
+
+To complete locally:
+
+```bash
+python3 -m http.server 8000   # from C:\Users\ALABA\Desktop\Files\PrivyPDF
+node scripts/check-headers.mjs http://localhost:8000
+node --test
+```
+
+then open `/`, `/privacy.html` at 1280/900/375px widths and run the console/Network checks.
+
+## Design D2 fixes
+
+Scope: landing page (index.html), privacy page (privacy.html), shared design system
+(css/theme.css, js/navbar.js), editor CSP exceptions (js/ui/cards.js, editor.html meta),
+and hygiene tests (tests/pages-hygiene.test.mjs). No git commands run, nothing committed.
+
+### Item 1 — inline styles removed (strict CSP: style-src 'self', no 'unsafe-inline')
+
+- js/ui/cards.js: lineShape/headingShape emit `data-w`; chartShape bars emit `data-h`;
+  sheetHtml emits `data-rotate` instead of inline `style="width/height/--rotate"` strings.
+  New `applySheetStyles()` applies them via CSSOM (`el.style.width/height`,
+  `sheet.style.setProperty("--rotate", ...)`) in `buildCard` and `syncCard` — identical
+  rendering (markup uses class="shape line" while CSS defines .shape-line, so inline styles
+  were the only sizing source), CSP-safe.
+- editor.html: meta CSP is now the vercel.json policy minus frame-ancestors:
+  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self';
+  img-src 'self' blob: data:; font-src 'self'; connect-src 'self';
+  worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'`.
+  frame-ancestors stays in the real header only.
+- index.html / privacy.html: removed `frame-ancestors 'none'` from the meta CSP
+  (stays in the real header only). design-system.html had no CSP meta; none added.
+- Repo-wide search for inline-style sources (`style=`, `setAttribute("style"...)` in html/js,
+  incl. template strings): the only authored hit was js/ui/cards.js (5 occurrences, all
+  fixed). vendor/pdf.js minified bundles contain third-party strings — left untouched.
+  README.md / REPORT.md mentions are prose.
+
+### Item 1d — hygiene tests extended
+
+tests/pages-hygiene.test.mjs gained two tests:
+- "no inline-style sources in any js file under js/" — walks every .js under js/ and
+  fails on `style=` / `setAttribute("style"...)`.
+- "editor.html meta CSP matches vercel.json policy (frame-ancestors aside)" — parses
+  vercel.json and compares both policies with frame-ancestors stripped.
+Result: `node --test` → 70/70 pass.
+
+### Item 2 — mobile horizontal overflow
+
+- `.ds-feature-text` / `.ds-feature-media`: width 100%, min-width 0 below 900px (480px
+  desktop max preserved); `.ds-feature-media` is now flex 1.2.
+- `.ds-section`, `.ds-container` get min-width: 0 and `.ds-panel` max-width: 100% below
+  900px so tables/panels can't overflow narrow containers (`.ds-table-wrap overflow-x:
+  auto` already existed).
+- Layout checked by math at 1440/1280/900/375/320; live browser checks NOT RUN (local
+  server denied by sandbox — see below).
+
+### Item 3 — landing matches the approved design
+
+- Nav: wordmark left; Home/Tools/Privacy/FAQ centered in `.ds-nav-center`; blue
+  "Open the editor" CTA (height 44px) far right; menu button `aria-label="Menu"` plus
+  `aria-expanded`/`aria-controls`, 44x44 hit area, visible on mobile.
+- Hero: badge "Runs entirely in your browser" → /privacy.html; h1 two lines with
+  gradient on "device.", max-width 820px; lead max-width 620px; gaps 24 / 20 / 32 / 16;
+  CTA row gap 32px with outline "How it stays private" → /privacy.html (shield icon);
+  guarantee "No uploads. No accounts. No tracking."
+- Hero visual: `ds-field` > `ds-window` (max-width 760px, 300px) with 52px studio-black
+  rail, 6-sheet grid (4 cols, 16px gap, 118px tall, radius 10px, two sheets selected
+  with blue ring), studio-black floatbar bottom center ("2 selected · Rotate Duplicate
+  Extract Delete"); `#hero-drop` ds-dropzone sits under the window inside the field:
+  badge "Read by your browser, never uploaded", "Drop a PDF or image to open it in the
+  editor", "or click to choose". "start editing" removed everywhere (verified: no
+  remaining occurrences).
+- Facts strip: 4 items — "No file uploads, ever", "Strict Content Security Policy",
+  "No analytics or cookies", "Self-hosted, open-source engines" — 18px icons, gap 56px,
+  15px/550 Graphite, bottom border, 56px vertical padding; wraps 2x2 below 900px.
+- Feature row 1: label "Page tools" + ds-badge-soon; h2 "Organize pages without a
+  server"; new caption ("Select, rotate, duplicate and delete pages with undo and redo…
+  demo uses sample pages; opening real PDFs and drag-to-reorder come next."); outline CTA
+  "Try the interactive demo" → /editor.html#demo; media: ds-window 260px tall with rail +
+  5-sheet grid (one selected). "insert blank pages" / "full undo" claims removed.
+- Feature row 2 kept; `.ds-proof-row` gap 16px.
+- #tools "Organize pages" card: ds-badge-soon added; description reworded to
+  "Select, rotate, duplicate and delete pages in the interactive demo."
+- #how cards, tool grid, proof cards, FAQ: unchanged, all in `.ds-container` (same width
+  and left edge as other sections).
+
+### Item 4 — privacy page
+
+- h1 responsive: 60px/66px from 700px up (unchanged), 40px/46px below 700px
+  (new `@media (max-width: 699px)` rule).
+- Audited every sentence: band reworded to "Your document and anything you do with it
+  stay on this tab. Processing happens on your CPU with engines that ship with the page,
+  and nothing is sent anywhere." — no editing, exporting, merging, converting or offline
+  claims remain.
+
+### Item 5 — style guide composites (design-system.html)
+
+- Landing-hero composite centered; editor-shell composite (rail, top bar, 7 sheets,
+  panel) unchanged structurally.
+- Floatbar/sheet overlap at 1280px fixed: `.ds-sheet-grid padding: 32px 0 72px`, so the
+  floating bar (pinned above shell-main's bottom edge) lands on grid padding instead of
+  the last sheet row. Same fix applies to the editor's page grid.
+
+### Verification
+
+```
+node --test            -> 70/70 pass (12 hygiene assertions incl. the 2 new ones)
+node scripts/check-contrast.mjs -> 12/12 pairs PASS (>= 4.5:1)
+node scripts/check-headers.mjs --local -> all 7 header checks PASS
+```
+
+Browser checks: NOT RUN — no browser available and `python3 -m http.server 8000` is
+denied by the sandbox, so live-page checks (overflow at 1440/1280/900/375/320, CSP in
+the browser, `#hero-drop` handoff) were not executed. To complete locally:
+
+```bash
+python3 -m http.server 8000   # from C:\Users\ALABA\Desktop\Files\PrivyPDF
+node scripts/check-headers.mjs http://localhost:8000
+node --test
+```
+
+then open `/`, `/privacy.html` at 1280/900/375px widths and run the console/Network checks.
+
+Nothing was committed. Git was not touched.

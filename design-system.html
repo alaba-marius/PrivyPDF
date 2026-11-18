@@ -47,7 +47,7 @@
     <section class="ds-section" id="type">
       <h2 class="ds-text-section-heading">Type scale</h2>
       <p class="ds-prose">Utility classes document the DESIGN.md typography scale.</p>
-      <table class="ds-guide-table">
+      <div class="ds-table-wrap"><table class="ds-guide-table">
         <thead><tr><th>Class</th><th>Token</th><th>Sample</th></tr></thead>
         <tbody>
           <tr><td class="ds-guide-value">.ds-text-micro-label</td><td class="ds-guide-value">--text-micro-label / --leading-micro-label / --tracking-micro-label</td><td class="ds-text-micro-label">Micro label · 13/16 · w550</td></tr>
@@ -60,14 +60,14 @@
           <tr><td class="ds-guide-value">.ds-text-section-heading</td><td class="ds-guide-value">--text-section-heading / --leading-section-heading / --tracking-section-heading</td><td class="ds-text-section-heading">Section heading · 40/48 · w600 · tracking -0.8px</td></tr>
           <tr><td class="ds-guide-value">.ds-text-display</td><td class="ds-guide-value">--text-display / --leading-display / --tracking-display</td><td class="ds-text-display">Display · 60/66 · w600 · tracking -1.2px</td></tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- ================= Spacing ================= -->
     <section class="ds-section" id="spacing">
       <h2 class="ds-text-section-heading">Spacing scale</h2>
       <p class="ds-prose">Base unit <code>--spacing-unit: 4px</code>. All spacing tokens derive from it.</p>
-      <table class="ds-guide-table">
+      <div class="ds-table-wrap"><table class="ds-guide-table">
         <thead><tr><th>Token</th><th>Value</th></tr></thead>
         <tbody>
           <tr><td class="ds-guide-value">--spacing-4</td><td class="ds-guide-value">4px</td></tr>
@@ -85,7 +85,7 @@
           <tr><td class="ds-guide-value">--spacing-120</td><td class="ds-guide-value">120px</td></tr>
           <tr><td class="ds-guide-value">--spacing-200</td><td class="ds-guide-value">200px</td></tr>
         </tbody>
-      </table>
+      </table></div>
       <p class="ds-text-caption">Layout tokens: <code>--section-gap: 40px</code>, <code>--card-padding: 16px</code>, <code>--element-gap: 12px</code>.</p>
     </section>
 
@@ -93,7 +93,7 @@
     <section class="ds-section" id="radii">
       <h2 class="ds-text-section-heading">Radii</h2>
       <p class="ds-prose">Named radii map to the raw radius tokens.</p>
-      <table class="ds-guide-table">
+      <div class="ds-table-wrap"><table class="ds-guide-table">
         <thead><tr><th>Named radius</th><th>Token</th><th>Value</th><th>Visual</th></tr></thead>
         <tbody>
           <tr><td class="ds-guide-value">--radius-cards</td><td class="ds-guide-value">--radius-2xl</td><td class="ds-guide-value">20px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="20" fill="#161618"/></svg></td></tr>
@@ -104,7 +104,7 @@
           <tr><td class="ds-guide-value">--radius-buttons</td><td class="ds-guide-value">--radius-xl</td><td class="ds-guide-value">14px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="14" fill="#161618"/></svg></td></tr>
           <tr><td class="ds-guide-value">--radius-iconcontrols</td><td class="ds-guide-value">--radius-3xl</td><td class="ds-guide-value">40px</td><td><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true" focusable="false"><rect width="44" height="24" rx="12" fill="#161618"/></svg></td></tr>
         </tbody>
-      </table>
+      </table></div>
       <p class="ds-text-caption">Raw tokens: <code>--radius-xl 14px</code>, <code>--radius-2xl 20px</code>, <code>--radius-3xl 40px</code>, <code>--radius-full 48px</code>, <code>--radius-full-2 56px</code>, <code>--radius-full-3 9999px</code>.</p>
     </section>
 
@@ -112,7 +112,7 @@
     <section class="ds-section" id="shadows">
       <h2 class="ds-text-section-heading">Shadows</h2>
       <p class="ds-prose">Shadow tokens are <code>box-shadow</code> values.</p>
-      <table class="ds-guide-table">
+      <div class="ds-table-wrap"><table class="ds-guide-table">
         <thead><tr><th>Token</th><th>Value</th></tr></thead>
         <tbody>
           <tr><td class="ds-guide-value">--shadow-lg</td><td class="ds-guide-value">rgba(22, 22, 24, 0.02) 0 7px 20px -8px, rgba(22, 22, 24, 0.02) 0 29px 33px -4px, rgba(22, 22, 24, 0.05) 0 22px 30px -8px, rgba(22, 22, 24, 0.06) 0 0 0 0 0 1px</td></tr>
@@ -120,7 +120,7 @@
           <tr><td class="ds-guide-value">--shadow-sm-2</td><td class="ds-guide-value">rgba(22, 22, 24, 0.2) 0 2px 6px -1px, rgba(22, 22, 24, 0.16) 0 0 0 0 0 1px</td></tr>
           <tr><td class="ds-guide-value">--shadow-sm-3</td><td class="ds-guide-value">rgba(22, 22, 24, 0.5) 0 0 6px -2px, rgba(22, 22, 24, 0.25) 0 6px 4px -2px</td></tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- ================= Components ================= -->
@@ -219,11 +219,11 @@
         <div class="ds-window">
           <div class="ds-window-bar">document.pdf · 7 pages</div>
           <div class="ds-window-body">
-            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
-            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
-            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
-            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
-            <div class="ds-mini-page"><div class="ds-shape-line" style></div><div class="ds-shape-line" style></div></div>
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page ds-mini-page--selected"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
+            <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
           </div>
         </div>
         <div class="ds-window ds-fs--hover">
@@ -240,7 +240,7 @@
       <div class="ds-band ds-section">
         <div class="ds-row">
           <div class="ds-col">
-            <div class="ds-text-section-heading" style>Dark band</div>
+            <div class="ds-text-section-heading">Dark band</div>
             <p class="ds-prose">Studio black band with on-dark text.</p>
           </div>
           <div class="ds-col">
@@ -501,12 +501,157 @@
       </div>
     </section>
 
+    <!-- ================= Page components (landing / privacy) ================= -->
+    <section class="ds-section" id="page-components">
+      <h2 class="ds-text-section-heading">Page components (D2)</h2>
+      <p class="ds-prose">Components used by index.html and privacy.html: badge variants, fact strip, feature rows, tool cards, step cards, FAQ, promise grid, hero dropzone and the mobile nav panel.</p>
+
+      <h3 class="ds-text-feature-heading">Badge variants</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-badge-soon">Soon</div>
+        <div class="ds-badge-dark"><div class="ds-badge-dot" aria-hidden="true"></div>Private by default</div>
+        <div class="ds-badge-light">Light</div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Fact strip</h3>
+      <div class="ds-facts ds-section">
+        <div class="ds-fact">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+          <div><strong>0 bytes uploaded</strong><span>No backend accepts files.</span></div>
+        </div>
+        <div class="ds-fact">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 4 8 8 8 10z"/></svg>
+          <div><strong>Strict CSP</strong><span>connect-src 'self'.</span></div>
+        </div>
+        <div class="ds-fact">
+          <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div><strong>No trackers</strong><span>No analytics or scripts.</span></div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Feature row</h3>
+      <div class="ds-feature-row ds-section">
+        <div class="ds-container">
+          <div class="ds-feature-text">
+            <span class="ds-feature-label">Page tools</span>
+            <h2 class="ds-feature-title">Organize pages</h2>
+            <p class="ds-prose ds-feature-caption">Reorder, rotate, duplicate, insert and delete pages, with full undo.</p>
+          </div>
+          <div class="ds-feature-media">
+            <div class="ds-field">
+              <div class="ds-window">
+                <div class="ds-window-bar">document.pdf · 7 pages</div>
+                <div class="ds-window-body"><div class="ds-mini-page"></div><div class="ds-mini-page"></div><div class="ds-mini-page"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Tool cards</h3>
+      <div class="ds-row ds-section">
+        <a class="ds-tool-card" href="#">
+          <div class="ds-tool-head">
+            <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 2.69l5.66-5.66a1 1 0 0 1 1.41 0l11.66 11.66a1 1 0 0 1 0 1.41L18.34 20.66a1 1 0 0 1-1.41 0L2.69 13.12a1 1 0 0 1 0-1.41l5.66-5.67a1 1 0 0 1 1.41 0L11 9h8a1 1 0 0 1 0 2h-8v8a1 1 0 0 1-2 0v-8z"/></svg>
+            <span class="ds-tool-title">Organize pages</span>
+          </div>
+          <p class="ds-tool-desc">Reorder, rotate, duplicate, insert blank pages and delete, with full undo.</p>
+        </a>
+        <a class="ds-tool-card" href="#">
+          <div class="ds-tool-head">
+            <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M5 12h14"/></svg>
+            <span class="ds-tool-title">Merge PDFs</span>
+          </div>
+          <p class="ds-tool-desc">Combine any number of PDFs into one file.</p>
+          <span class="ds-badge-soon">Soon</span>
+        </a>
+        <a class="ds-tool-card" href="#">
+          <div class="ds-tool-head">
+            <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            <span class="ds-tool-title">Images to PDF</span>
+          </div>
+          <p class="ds-tool-desc">Turn JPG and PNG photos or scans into pages.</p>
+          <span class="ds-badge-soon">Soon</span>
+        </a>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Step cards</h3>
+      <div class="ds-row ds-section">
+        <div class="ds-step-card">
+          <div class="ds-step-number">1</div>
+          <h3 class="ds-step-title">Pick a file</div>
+          <p class="ds-step-text">Drop a PDF or choose it from your device.</p>
+        </div>
+        <div class="ds-step-card">
+          <div class="ds-step-number">2</div>
+          <h3 class="ds-step-title">Handle on-device</div>
+          <p class="ds-step-text">Engines that ship with the page process it locally.</p>
+        </div>
+        <div class="ds-step-card">
+          <div class="ds-step-number">3</div>
+          <h3 class="ds-step-title">Download the result</div>
+          <p class="ds-step-text">Nothing is saved on a server; the file stays in this tab.</p>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">FAQ</h3>
+      <div class="ds-faq ds-section">
+        <details>
+          <summary>Are my files really never uploaded?</summary>
+          <p>Yes — there is no backend that accepts files.</p>
+        </details>
+        <details>
+          <summary>Do I need an account?</summary>
+          <p>No accounts, logins, cookies or trackers.</p>
+        </details>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Promise grid</h3>
+      <div class="ds-promise-grid ds-section">
+        <div class="ds-card">
+          <div class="ds-card-label">Network</div>
+          <div class="ds-card-title">Strict CSP</div>
+          <p class="ds-card-text">connect-src 'self' — no other origins.</p>
+        </div>
+        <div class="ds-card">
+          <div class="ds-card-label">Storage</div>
+          <div class="ds-card-title">Memory only</div>
+          <p class="ds-card-text">Discarded when you close the tab.</p>
+        </div>
+        <div class="ds-card">
+          <div class="ds-card-label">Accounts</div>
+          <div class="ds-card-title">None</div>
+          <p class="ds-card-text">No logins or trackers.</p>
+        </div>
+        <div class="ds-card">
+          <div class="ds-card-label">Code</div>
+          <div class="ds-card-title">Local engines</div>
+          <p class="ds-card-text">Served from this site, handled on your device.</p>
+        </div>
+      </div>
+
+      <h3 class="ds-text-feature-heading">Hero dropzone</h3>
+      <div class="ds-field ds-section">
+        <div class="ds-window">
+          <div id="demo-dropzone" role="button" tabindex="0" aria-label="Choose PDF or image files" class="ds-dropzone--hero">
+            <div class="dropzone-icon">
+              <svg class="ds-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2V4"/><path d="M10 13H7"/><path d="M10 17H7"/></svg>
+            </div>
+            <div class="dropzone-title">Drop a PDF or image to open it in the editor</div>
+            <div class="dropzone-hint">or click to choose</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
     <!-- ================= Composite: landing hero ================= -->
     <section class="ds-section" id="composite-hero">
       <h2 class="ds-text-section-heading">Composite: landing hero</h2>
       <p class="ds-prose">Real PrivyPDF wording. Badge, two-line headline with gradient last word, supporting copy, primary + outline buttons, guarantee line, then a field &gt; window with a mini-page grid.</p>
-      <div class="ds-container">
-        <span class="ds-badge-light">Private by default</span>
+      <div class="ds-hero-preview">
+        <div class="ds-container">
+          <span class="ds-badge-light">Private by default</span>
         <h1 class="ds-text-display">Your PDFs stay<br>on this <span class="ds-gradient-word">device.</span></h1>
         <p class="ds-prose">PrivyPDF is a private PDF toolkit that runs entirely in your browser. No uploads, no accounts, no trackers — your documents never leave your device.</p>
         <div class="ds-row">
@@ -528,6 +673,7 @@
             <div class="ds-mini-page"><div class="ds-shape-line"></div><div class="ds-shape-line"></div></div>
           </div>
         </div>
+      </div>
       </div>
     </section>
 
