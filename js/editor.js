@@ -36,8 +36,10 @@ const store = createStore(
       ? Array.from({ length: 7 }, (_, id) => ({ id: `p${id + 1}`, rotated: 0 }))
       : [],
     selected: DEMO ? ["p3", "p4"] : [],
-    sourceFiles: [],
-    totalSize: 0,
+    sourceFiles: DEMO
+      ? [{ name: "Annual-report.pdf", size: 2_516_582, type: "application/pdf" }]
+      : [],
+    totalSize: DEMO ? 2_516_582 : 0,
     size: "large",
     exportMode: "all",
   },
@@ -47,6 +49,9 @@ const store = createStore(
 let nextId = store.get().pages.length + 1;
 focusedId = store.get().pages[0]?.id ?? null;
 let anchorId = null;
+
+// The "Demo with sample pages" badge only makes sense in demo mode.
+$("demo-badge")?.toggleAttribute("hidden", !DEMO);
 
 function getState() {
   return { ...store.get(), focusedId };
@@ -77,11 +82,14 @@ function renderAll() {
   floatBar.label(count);
   floatBar.setHidden(count === 0);
 
+  // Below 480px the sub-toolbar holds Select all, Undo and Redo side by side,
+  // so drop the "N pages" part and keep only "N selected".
+  const demoStatus = mq480.matches ? `${count} selected` : `${state.pages.length} pages · ${count} selected`;
   $("sub-status").textContent =
     state.mode === "loading"
       ? "Loading…"
       : state.mode === "demo"
-        ? `${state.pages.length} pages · ${count} selected`
+        ? demoStatus
         : state.mode === "loaded"
           ? `${state.sourceFiles.length} file(s) loaded`
           : "No document";
@@ -98,6 +106,14 @@ function renderAll() {
   $("export-selected").disabled = !hasPages;
   $("btn-undo").disabled = !hasPages || !store.canUndo();
   $("btn-redo").disabled = !hasPages || !store.canRedo();
+
+  // Actions triggered outside the grid (top bar, float bar, panel, shortcuts,
+  // undo/redo) don't land focus on a card, so move it to the focused page so
+  // arrow keys keep working. Never yank focus away from an open input.
+  if (state.focusedId != null && document.activeElement !== $("doc-name")) {
+    const focusEl = $("page-grid").querySelector(`[data-id="${state.focusedId}"]`);
+    if (focusEl && focusEl !== document.activeElement) focusEl.focus();
+  }
 }
 
 // ---------- File handling ----------
@@ -164,7 +180,7 @@ function duplicateSelected() {
     nextId,
   );
   nextId = newNextId;
-  focusedId = dupes[dupes.length - 1]?.id ?? null;
+  focusedId = dupes[0]?.id ?? null;
   store.checkpoint((s) => {
     s.pages = pages;
     s.selected = dupes.map((page) => page.id);
@@ -173,12 +189,27 @@ function duplicateSelected() {
 
 function deleteSelected() {
   const state = getState();
+  const focusedIdx = state.pages.findIndex((page) => page.id === state.focusedId);
   store.checkpoint((s) => {
     s.pages = deletePages(s.pages, state.selected);
     s.selected = [];
   });
-  // focusedId / anchorId may have pointed at deleted pages; renderAll falls
-  // back to the first remaining page, or null when no pages remain.
+  // If the focused page was deleted, focus the page that took its place (the
+  // one after it), falling back to the page before it when it was the last
+  // page, then the first remaining page. Otherwise keep focus where it is.
+  const after = getState();
+  if (after.pages.length === 0) {
+    focusedId = null;
+  } else if (
+    state.focusedId != null &&
+    after.pages.some((page) => page.id === state.focusedId)
+  ) {
+    // focused page survived
+  } else {
+    focusedId =
+      (after.pages[focusedIdx] ?? after.pages[focusedIdx - 1] ?? after.pages[0])
+        .id;
+  }
   renderAll();
 }
 
@@ -227,6 +258,29 @@ $("btn-download").addEventListener("click", () => {
   toast("Download is coming in the next phase.", { type: "success" });
 });
 
+// Pin the rail scroll to 0 on load so the overflowing tab row never clips
+// its first item (Pages).
+$("rail").scrollLeft = 0;
+
+// Below 480px the top bar cannot hold five 44px buttons (Add files, Undo,
+// Redo, Download, Details), so Undo/Redo move into the sub-toolbar. The
+// elements are moved (not copied), so their listeners stay attached and no
+// id is duplicated.
+const mq480 = matchMedia("(max-width: 479px)");
+const topRight = document.querySelector(".top-right");
+const subRight = document.querySelector(".sub-right");
+function placeUndoRedo() {
+  if (mq480.matches) {
+    if (subRight && $("btn-undo").parentElement !== subRight) {
+      subRight.append($("btn-undo"), $("btn-redo"));
+    }
+  } else if (topRight && $("btn-undo").parentElement !== topRight) {
+    topRight.append($("btn-undo"), $("btn-redo"));
+  }
+}
+mq480.addEventListener("change", placeUndoRedo);
+placeUndoRedo();
+
 // Rail (only Pages is implemented this phase).
 $("rail-merge").addEventListener("click", () => {
   toast("Coming in the next phase.", { type: "success" });
@@ -250,7 +304,7 @@ const floatBar = mountFloatBar($("float-bar"), {
 
 // Right panel.
 const panel = mountPanel($("right-panel"), {
-  onFileNameChange: (name) => store.patch({ fileName: name }),
+  onFileNameChange: (name) => store.patch({ fileName: name.replace(/\.pdf$/i, "") + ".pdf" }),
   onExportModeChange: (mode) => {
     if (mode === "selected" && !getState().selected.length) {
       toast("Select pages first.", { type: "error" });

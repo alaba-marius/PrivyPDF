@@ -1,51 +1,10 @@
 // Page grid: roving-tabindex listbox of page cards with Ctrl/Shift selection.
 // Demo sheets only — real previews arrive in the next phase. All mutations go
 // through callbacks so the store stays the single source of truth.
-import { icon } from "../icons.js";
+import { sheetHtml, applySheetStyles, checkMarkup } from "../core/card-view.js";
 
-function lineShape(w) {
-  return `<div class="shape line" data-w="${w}"></div>`;
-}
-function headingShape(w) {
-  return `<div class="shape heading" data-w="${w}"></div>`;
-}
-function imageShape(h) {
-  return `<div class="shape image variant-${h === 40 ? "small" : h === 90 ? "large" : "normal"}"></div>`;
-}
-function chartShape() {
-  return `<div class="shape chart">
-    <div class="bar" data-h="40"></div>
-    <div class="bar dark" data-h="65"></div>
-    <div class="bar" data-h="50"></div>
-    <div class="bar dark" data-h="90"></div>
-  </div>`;
-}
-
-// Apply data-* presentational attributes through the CSSOM. element.style
-// assignments are script-driven, so the strict CSP (style-src 'self', no
-// 'unsafe-inline') does not block them — unlike inline style attributes.
-function applySheetStyles(sheet) {
-  const rotate = sheet.dataset.rotate;
-  if (rotate !== undefined) sheet.style.setProperty("--rotate", `${rotate}deg`);
-  for (const shape of sheet.querySelectorAll("[data-w]")) {
-    shape.style.width = `${shape.dataset.w}%`;
-  }
-  for (const shape of sheet.querySelectorAll("[data-h]")) {
-    shape.style.height = `${shape.dataset.h}%`;
-  }
-}
-
-// Seven varied demo sheets so the demo grid isn't repetitive.
-const DEMO_SHEETS = [
-  [lineShape(60), headingShape(52), imageShape(40), chartShape()],
-  [lineShape(90), imageShape(58), chartShape()],
-  [headingShape(44), imageShape(40), lineShape(44)],
-  [chartShape(), imageShape(90), headingShape(58)],
-  [lineShape(58), imageShape(58), lineShape(78)],
-  [headingShape(52), chartShape(), imageShape(40)],
-  [imageShape(90), lineShape(66), headingShape(48)],
-];
-
+// Cards keyed by page id for incremental renders; re-entrancy guard for
+// render() so a focus() inside render() can never loop back into render().
 export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
   const {
     getState,
@@ -59,13 +18,6 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
     onAdd,
   } = opts;
 
-  function sheetHtml(page, index) {
-    const parts = DEMO_SHEETS[index % DEMO_SHEETS.length].join("");
-    return `<div class="sheet" data-rotate="${page.rotated}">${parts}</div>`;
-  }
-
-  // Cards keyed by page id for incremental renders; re-entrancy guard for
-  // render() so a focus() inside render() can never loop back into render().
   const cards = new Map();
   let rendering = false;
 
@@ -80,16 +32,16 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
     card.dataset.index = index;
     if (selected.has(page.id)) card.setAttribute("aria-selected", "true");
     card.insertAdjacentHTML("beforeend", sheetHtml(page, index));
-    applySheetStyles(card.querySelector(".sheet"));
+    const sheet = card.querySelector(".ds-sheet");
+    applySheetStyles(sheet);
+    if (selected.has(page.id)) {
+      sheet.classList.add("ds-sheet--selected");
+      sheet.insertAdjacentHTML("beforeend", checkMarkup());
+    }
     const num = document.createElement("span");
     num.className = "page-number";
     num.textContent = number;
     card.appendChild(num);
-    const check = document.createElement("div");
-    check.className = "check";
-    check.innerHTML = icon("check");
-    check.setAttribute("aria-hidden", "true");
-    card.appendChild(check);
     card.addEventListener("focus", () => {
       // Roving tabindex in place; never call renderAll() or rebuild DOM here
       // so a card clicked between mousedown and mouseup keeps its click.
@@ -99,6 +51,12 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
       onFocus?.(card.dataset.id);
     });
     return card;
+  }
+
+  function toggleCheck(sheet, on) {
+    const check = sheet.querySelector(".ds-check");
+    if (on && !check) sheet.insertAdjacentHTML("beforeend", checkMarkup());
+    if (!on && check) check.remove();
   }
 
   function render() {
@@ -121,7 +79,7 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
       // Reuse existing cards, moving them into the current order; build only
       // new ones. Appending a node already in the DOM moves it without
       // destroying it, so a card clicked between mousedown and mouseup keeps
-      // its click event. Selection, focus and size changes update in place.
+      // its click event. Selection, focus, size and rotation update in place.
       for (let index = 0; index < pages.length; index++) {
         const page = pages[index];
         const number = index + 1;
@@ -161,7 +119,14 @@ export function mountGrid(gridEl, addTileEl, workareaEl, opts = {}) {
     card.dataset.index = index;
     card.setAttribute("aria-label", `Page ${number}`);
     card.querySelector(".page-number").textContent = number;
-    applySheetStyles(card.querySelector(".sheet"));
+
+    const sheet = card.querySelector(".ds-sheet");
+    // Write the current rotation so the sheet actually turns (the transform
+    // reads --rotate from this attribute via css/theme.css).
+    sheet.dataset.rotate = page.rotated;
+    sheet.classList.toggle("ds-sheet--selected", selected.has(page.id));
+    toggleCheck(sheet, selected.has(page.id));
+    applySheetStyles(sheet);
   }
 
   gridEl.addEventListener("click", (event) => {
@@ -217,7 +182,7 @@ export function buildSkeletons(count, container) {
   container.textContent = "";
   for (let i = 0; i < count; i++) {
     const el = document.createElement("div");
-    el.className = "skeleton-card";
+    el.className = "ds-skeleton skeleton-card";
     container.appendChild(el);
   }
 }

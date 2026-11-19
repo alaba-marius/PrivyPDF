@@ -6,3 +6,9 @@ Dockerfile
 .dockerignore
 README.md
 REPORT.md
+DESIGN.md
+scripts
+design-system.html
+_headers
+.claude
+.impeccable

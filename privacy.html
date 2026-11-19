@@ -24,6 +24,7 @@
     />
     <link rel="stylesheet" href="/css/theme.css" />
     <script type="module" src="/js/site.js"></script>
+    <script type="module" src="/js/privacy.js"></script>
   </head>
   <body>
     <header data-navbar></header>
@@ -31,30 +32,35 @@
     <main>
       <section class="ds-page-hero">
         <div class="ds-container">
-          <h1 class="ds-text-display">Private by design. Proven by the network tab.</h1>
-          <p class="ds-prose">
-            PrivyPDF reads your document into this tab's memory and handles it
-            on your device, using engines that ship with the page. Nothing is
-            uploaded — there is no backend that accepts files.
-          </p>
-          <p class="ds-prose">
-            Open the editor, open DevTools, and watch the Network tab. Every
-            request stays on this site; none contains your document, and none
-            goes to another server. The editor also counts requests to other
-            origins — it should always read zero.
-          </p>
-          <a class="ds-btn ds-btn--primary" href="#verify">How to verify →</a>
+          <div class="ds-stack ds-stack--md">
+            <h1 class="ds-text-display">Private by design. Proven by the network tab.</h1>
+            <p class="ds-prose">
+              PrivyPDF reads your document into this tab's memory and handles it
+              on your device, using engines that ship with the page. Nothing is
+              uploaded. There is no backend that accepts files.
+            </p>
+            <p class="ds-prose">
+              Open the editor, open DevTools, and watch the Network tab. Every
+              request stays on this site. No request contains your document, and
+              none goes to another server. The editor also counts requests to other
+              origins. It should always read zero.
+            </p>
+            <a class="ds-btn ds-btn--primary" href="#verify">How to verify →</a>
+          </div>
         </div>
       </section>
 
       <section id="verify">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">How to verify it yourself</h2>
-          <p class="ds-prose">
-            You don't have to take our word for it. These steps take about a
-            minute.
-          </p>
-          <ol class="ds-land-list">
+          <div class="ds-stack ds-stack--md">
+            <h2 class="ds-text-section-heading">How to verify it yourself</h2>
+            <p class="ds-prose">
+              You don't have to take our word for it. These steps take about a
+              minute.
+            </p>
+          </div>
+          <div class="ds-stack ds-stack--lg">
+            <ol class="ds-land-list">
             <li>Open <a href="/editor.html">the editor</a>.</li>
             <li>
               Open DevTools (F12 or Ctrl+Shift+I / Cmd+Option+I) and switch to
@@ -63,8 +69,8 @@
             <li>Check "Disable cache", then open or drop a PDF in the editor.</li>
             <li>
               Watch the Network tab. You may see requests for this site's own
-              pages, styles and scripts — but none to any other server, and
-              none that carries your document.
+              pages, styles and scripts. None go to any other server, and
+              none carries your document.
             </li>
             <li>
               Close or reload the tab. Your file is gone; it lived only in this
@@ -75,32 +81,39 @@
             The editor shows a privacy meter ("0 requests to other servers
             since you opened this file"). It should stay at zero.
           </p>
+          </div>
         </div>
       </section>
 
       <section class="ds-band">
         <div class="ds-container">
           <div class="ds-band-text">
-            <h2>What never leaves your device</h2>
-            <p>
-              Your document and anything you do with it stay on this tab.
-              Processing happens on your CPU with engines that ship with the
-              page, and nothing is sent anywhere.
-            </p>
-            <a class="ds-btn ds-btn--primary" href="/editor.html">
-              Open the editor
-            </a>
+            <div class="ds-stack ds-stack--lg">
+              <div class="ds-stack ds-stack--md">
+                <h2>What never leaves your device</h2>
+                <p>
+                  Your document and anything you do with it stay on this tab.
+                  Processing happens on your CPU with engines that ship with the
+                  page, and nothing is sent anywhere.
+                </p>
+              </div>
+              <a class="ds-btn ds-btn--primary" href="/editor.html">
+                Open the editor
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
       <section>
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Privacy promises</h2>
-          <p class="ds-prose">
-            These are properties of how the site is built, not claims we ask
-            you to trust.
-          </p>
+          <div class="ds-stack ds-stack--md">
+            <h2 class="ds-text-section-heading">Privacy promises</h2>
+            <p class="ds-prose">
+              These are built-in properties of the site. You can verify each one
+              yourself.
+            </p>
+          </div>
           <div class="ds-promise-grid">
             <div class="ds-card">
               <div class="ds-card-label">Network</div>
@@ -175,8 +188,9 @@
 
       <section id="faq">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Questions, answered</h2>
-          <div class="ds-faq">
+          <div class="ds-stack ds-stack--lg">
+            <h2 class="ds-text-section-heading">Frequently asked questions</h2>
+            <div class="ds-faq">
             <details>
               <summary>Are my files really never uploaded?</summary>
               <p>
@@ -211,11 +225,12 @@
               </p>
             </details>
           </div>
+          </div>
         </div>
       </section>
     </main>
 
-    <footer class="ds-footer">
+    <footer class="ds-footer ds-container">
       <a href="/" class="ds-footer-brand" data-logo aria-label="PrivyPDF home"></a>
       <nav class="ds-footer-links" aria-label="Footer">
         <a href="/">Home</a>

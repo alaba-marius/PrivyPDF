@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- Dev-only style guide, desktop layout only; not deployed -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -7,7 +8,7 @@
 <title>Design system — PrivyPDF</title>
 <link rel="stylesheet" href="css/theme.css">
 </head>
-<body>
+<body class="ds-guide">
   <div class="ds-container">
     <h1 class="ds-text-section-heading">Design system</h1>
     <p class="ds-prose">Dev-only style guide for the PrivyPDF design system in <code>css/theme.css</code>. Every component is prefixed with <code>ds-</code> so it never collides with <code>main.css</code> or <code>editor.css</code>. This page is not shipped to customers; it is consumed by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels. It loads only <code>css/theme.css</code> and contains no inline styles, no scripts, and no external requests.</p>
@@ -269,7 +270,7 @@
 
       <h3 class="ds-text-feature-heading">Footer</h3>
       <div class="ds-footer ds-section">
-        <div>© PrivyPDF — local only</div>
+        <div>© PrivyPDF. Local only.</div>
         <div class="ds-row">
           <a href="#">Privacy</a>
           <a href="#">Terms</a>
@@ -346,23 +347,27 @@
       </div>
 
       <h3 class="ds-text-feature-heading">Float bar</h3>
-      <div class="ds-floatbar ds-section">
-        <span class="ds-floatbar-label">2 selected</span>
-        <button class="ds-floatbar-btn">Rotate</button>
-        <button class="ds-floatbar-btn">Duplicate</button>
-        <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
-        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--hover">Delete · hover</button>
-        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--focus">Delete · focus</button>
-        <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--disabled" disabled>Delete · disabled</button>
+      <div class="ds-scroll-wrap">
+        <div class="ds-floatbar ds-section">
+          <span class="ds-floatbar-label">2 selected</span>
+          <button class="ds-floatbar-btn">Rotate</button>
+          <button class="ds-floatbar-btn">Duplicate</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--hover">Delete · hover</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--focus">Delete · focus</button>
+          <button class="ds-floatbar-btn ds-floatbar-btn--danger ds-fs--disabled" disabled>Delete · disabled</button>
+        </div>
       </div>
 
       <h3 class="ds-text-feature-heading">Segmented control</h3>
-      <div class="ds-segmented ds-section">
-        <button class="ds-segment ds-segment--active">Large</button>
-        <button class="ds-segment">Small</button>
-        <button class="ds-segment ds-fs--hover">Small · hover</button>
-        <button class="ds-segment ds-fs--focus">Small · focus</button>
-        <button class="ds-segment ds-fs--disabled" disabled>Small · disabled</button>
+      <div class="ds-scroll-wrap">
+        <div class="ds-segmented ds-section">
+          <button class="ds-segment ds-segment--active">Large</button>
+          <button class="ds-segment">Small</button>
+          <button class="ds-segment ds-fs--hover">Small · hover</button>
+          <button class="ds-segment ds-fs--focus">Small · focus</button>
+          <button class="ds-segment ds-fs--disabled" disabled>Small · disabled</button>
+        </div>
       </div>
 
       <h3 class="ds-text-feature-heading">Panel</h3>
@@ -598,7 +603,7 @@
       <div class="ds-faq ds-section">
         <details>
           <summary>Are my files really never uploaded?</summary>
-          <p>Yes — there is no backend that accepts files.</p>
+          <p>Yes. There is no backend that accepts files.</p>
         </details>
         <details>
           <summary>Do I need an account?</summary>
@@ -611,7 +616,7 @@
         <div class="ds-card">
           <div class="ds-card-label">Network</div>
           <div class="ds-card-title">Strict CSP</div>
-          <p class="ds-card-text">connect-src 'self' — no other origins.</p>
+          <p class="ds-card-text">connect-src 'self'. No other origins.</p>
         </div>
         <div class="ds-card">
           <div class="ds-card-label">Storage</div>
@@ -653,7 +658,7 @@
         <div class="ds-container">
           <span class="ds-badge-light">Private by default</span>
         <h1 class="ds-text-display">Your PDFs stay<br>on this <span class="ds-gradient-word">device.</span></h1>
-        <p class="ds-prose">PrivyPDF is a private PDF toolkit that runs entirely in your browser. No uploads, no accounts, no trackers — your documents never leave your device.</p>
+        <p class="ds-prose">PrivyPDF is a private PDF toolkit that runs entirely in your browser. No uploads, no accounts, no trackers. Your documents never leave your device.</p>
         <div class="ds-row">
           <button class="ds-btn ds-btn--primary">Open editor</button>
           <button class="ds-btn ds-btn--outline">Privacy model</button>
@@ -680,7 +685,7 @@
     <!-- ================= Composite: editor shell ================= -->
     <section class="ds-section" id="composite-editor">
       <h2 class="ds-text-section-heading">Composite: editor shell (static preview)</h2>
-      <p class="ds-prose">Topbar, rail, seven sheets (two selected), float bar and side panel. No live behavior — a static preview of the D3 editor surface in the design system.</p>
+      <p class="ds-prose">Topbar, rail, seven sheets (two selected), float bar and side panel. No live behavior. A static preview of the D3 editor surface in the design system.</p>
       <div class="ds-container">
         <div class="ds-shell">
           <div class="ds-shell-main ds-pos-rel">
@@ -727,11 +732,13 @@
                 <div class="ds-sheet-number">Page 7</div>
               </div>
             </div>
-            <div class="ds-floatbar ds-floatbar-at">
-              <span class="ds-floatbar-label">2 selected</span>
-              <button class="ds-floatbar-btn">Rotate</button>
-              <button class="ds-floatbar-btn">Duplicate</button>
-              <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+            <div class="ds-scroll-wrap">
+              <div class="ds-floatbar ds-floatbar-at">
+                <span class="ds-floatbar-label">2 selected</span>
+                <button class="ds-floatbar-btn">Rotate</button>
+                <button class="ds-floatbar-btn">Duplicate</button>
+                <button class="ds-floatbar-btn ds-floatbar-btn--danger">Delete</button>
+              </div>
             </div>
           </div>
           <aside class="ds-panel">

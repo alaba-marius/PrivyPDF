@@ -105,6 +105,17 @@ test("index and privacy load css/theme.css and never css/main.css", (t) => {
   }
 });
 
+test("editor.html loads css/theme.css and never css/main.css", (t) => {
+  assert.ok(
+    html["editor.html"].includes('href="/css/theme.css"'),
+    "editor.html does not load css/theme.css",
+  );
+  assert.ok(
+    !/css\/main\.css/.test(html["editor.html"]),
+    "editor.html still loads css/main.css",
+  );
+});
+
 test("no inline style attributes on any page", (t) => {
   for (const page of PAGES) {
     assert.ok(!/\sstyle\s*=/i.test(html[page]), `${page} contains a style attribute`);

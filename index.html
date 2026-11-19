@@ -32,31 +32,33 @@
     <main>
       <section class="ds-hero ds-hero-glow" aria-label="Hero">
         <div class="ds-container">
-          <a href="/privacy.html" class="ds-badge-dark">
-            <div class="ds-badge-dot" aria-hidden="true"></div>
-            Runs entirely in your browser
-          </a>
-          <h1 class="ds-text-display">
-            Private PDF tools.<br />
-            Nothing leaves your
-            <span class="ds-gradient-word">device.</span>
-          </h1>
-          <p class="ds-prose ds-hero-lead">
-            Every tool runs entirely in your browser. Files are read into this
-            tab's memory and handled on your device — nothing is uploaded.
-          </p>
-          <div class="ds-hero-ctas">
-            <a class="ds-btn ds-btn--primary" href="/editor.html#demo">
-              Open the editor
+          <div class="ds-stack ds-stack--md ds-stack--center">
+            <a href="/privacy.html" class="ds-badge-dark">
+              <div class="ds-badge-dot" aria-hidden="true"></div>
+              Runs entirely in your browser
             </a>
-            <a class="ds-btn ds-btn--outline" href="/privacy.html">
-              <i class="ds-icon" data-icon="shield-check" aria-hidden="true"></i>
-              How it stays private
-            </a>
+            <h1 class="ds-text-display">
+              Private PDF tools.<br />
+              Nothing leaves your
+              <span class="ds-gradient-word">device.</span>
+            </h1>
+            <p class="ds-prose ds-hero-lead">
+              Every tool runs entirely in your browser. Files are read into this
+              tab's memory and handled on your device. Nothing is uploaded.
+            </p>
+            <div class="ds-hero-ctas">
+              <a class="ds-btn ds-btn--primary" href="/editor.html">
+                Open the editor
+              </a>
+              <a class="ds-btn ds-btn--outline" href="/privacy.html">
+                <i class="ds-icon" data-icon="shield-check" aria-hidden="true"></i>
+                How it stays private
+              </a>
+            </div>
+            <p class="ds-text-body-small ds-hero-signoff">
+              No uploads. No accounts or tracking.
+            </p>
           </div>
-          <p class="ds-text-body-small ds-hero-signoff">
-            No uploads. No accounts. No tracking.
-          </p>
           <div class="ds-hero-media">
             <div class="ds-field">
               <div class="ds-window ds-hero-window" aria-hidden="true">
@@ -95,7 +97,6 @@
                 </div>
                 <div class="ds-hero-floatbar" aria-hidden="true">
                   <span class="ds-hero-floatbar-label">2 selected</span>
-                  <span class="ds-hero-floatbar-sep">·</span>
                   <button class="ds-floatbar-btn">Rotate</button>
                   <button class="ds-floatbar-btn">Duplicate</button>
                   <button class="ds-floatbar-btn">Extract</button>
@@ -109,7 +110,6 @@
                 aria-label="Choose PDF or image files to open in the editor"
                 class="ds-dropzone--hero"
               >
-                <span class="ds-badge-light">Read by your browser, never uploaded</span>
                 <div class="dropzone-icon">
                   <i class="ds-icon" data-icon="file-plus"></i>
                 </div>
@@ -117,14 +117,16 @@
                   Drop a PDF or image to open it in the editor
                 </div>
                 <div class="dropzone-hint">or click to choose</div>
+                <span class="ds-badge-light">Read by your browser, never uploaded</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="ds-facts" aria-label="Privacy guarantees">
-        <div class="ds-fact">
+      <section aria-label="Privacy guarantees">
+        <div class="ds-container ds-facts">
+          <div class="ds-fact">
           <i class="ds-icon" data-icon="cloud-off" aria-hidden="true"></i>
           <span>No file uploads, ever</span>
         </div>
@@ -140,16 +142,19 @@
           <i class="ds-icon" data-icon="cpu" aria-hidden="true"></i>
           <span>Self-hosted, open-source engines</span>
         </div>
+        </div>
       </section>
 
       <section id="how">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Your browser is the whole backend</h2>
-          <p class="ds-prose">
-            Files are read into this tab's memory, processed by engines that
-            ship with the page, and handled on your device. Nothing is
-            uploaded.
-          </p>
+          <div class="ds-stack ds-stack--md">
+            <h2 class="ds-text-section-heading">How it works</h2>
+            <p class="ds-prose">
+              Files are read into this tab's memory, processed by engines that
+              ship with the page, and handled on your device. Nothing is
+              uploaded.
+            </p>
+          </div>
           <div class="ds-card-grid">
             <div class="ds-card">
               <i class="ds-icon" data-icon="file-text"></i>
@@ -263,8 +268,8 @@
             <h2 class="ds-feature-title">Watch the Network tab stay empty</h2>
             <p class="ds-prose">
               Open the editor, open DevTools, and watch the Network tab. Every
-              request stays on this site — none contains your document, and
-              none goes to another server.
+              request stays on this site. No request contains your document,
+              and none goes to another server.
             </p>
             <a class="ds-btn ds-btn--outline" href="/privacy.html#verify">
               See the verification steps
@@ -275,11 +280,13 @@
 
       <section id="tools">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Everything you do with PDFs. Privately.</h2>
-          <p class="ds-prose">
-            All tools run on your device and nothing is uploaded. Tools land one
-            at a time; each is marked Soon until it's ready.
-          </p>
+          <div class="ds-stack ds-stack--md">
+            <h2 class="ds-text-section-heading">Tools that run on your device</h2>
+            <p class="ds-prose">
+              All tools run on your device and nothing is uploaded. Tools land one
+              at a time; each is marked Soon until it's ready.
+            </p>
+          </div>
           <div class="ds-tools-grid">
             <a class="ds-tool-card" href="/editor.html#demo">
               <div class="ds-tool-head">
@@ -344,8 +351,10 @@
 
       <section id="proof">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Built so you don't have to take our word</h2>
-          <p class="ds-prose">Every claim on this page is something you can check in DevTools yourself.</p>
+          <div class="ds-stack ds-stack--md">
+            <h2 class="ds-text-section-heading">Verify it yourself</h2>
+            <p class="ds-prose">Every claim on this page is something you can check in DevTools yourself.</p>
+          </div>
           <div class="ds-card-grid">
             <div class="ds-card">
               <i class="ds-icon" data-icon="eye"></i>
@@ -377,23 +386,28 @@
       <section class="ds-band ds-band--sweep">
         <div class="ds-container">
           <div class="ds-band-text">
-            <h2>Verify it yourself in a minute.</h2>
-            <p>
-              Open the editor, open DevTools, watch the Network tab. The editor
-              also counts requests to other origins — it should always read
-              zero.
-            </p>
-            <a class="ds-btn ds-btn--primary" href="/privacy.html#verify">
-              See the steps
-            </a>
+            <div class="ds-stack ds-stack--lg">
+              <div class="ds-stack ds-stack--md">
+                <h2>Verify it yourself in a minute.</h2>
+                <p>
+                  Open the editor, open DevTools, watch the Network tab. The editor
+                  also counts requests to other origins. It should always read
+                  zero.
+                </p>
+              </div>
+              <a class="ds-btn ds-btn--primary" href="/privacy.html#verify">
+                See the steps
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="faq">
         <div class="ds-container">
-          <h2 class="ds-text-section-heading">Questions, answered</h2>
-          <div class="ds-faq">
+          <div class="ds-stack ds-stack--lg">
+            <h2 class="ds-text-section-heading">Frequently asked questions</h2>
+            <div class="ds-faq">
             <details>
               <summary>Are my files really never uploaded?</summary>
               <p>
@@ -429,11 +443,12 @@
               </p>
             </details>
           </div>
+          </div>
         </div>
       </section>
     </main>
 
-    <footer class="ds-footer">
+    <footer class="ds-footer ds-container">
       <a href="/" class="ds-footer-brand" data-logo aria-label="PrivyPDF home"></a>
       <nav class="ds-footer-links" aria-label="Footer">
         <a href="/">Home</a>

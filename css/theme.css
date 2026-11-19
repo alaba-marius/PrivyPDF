@@ -147,6 +147,10 @@
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -163,6 +167,7 @@ h3 {
   font-family: var(--font-google-sans-flex);
   color: var(--color-absolute-ink);
   font-weight: 600;
+  text-wrap: balance;
 }
 
 h1 {
@@ -232,6 +237,62 @@ a:hover {
 
 .ds-section:last-child {
   margin-block-end: 0;
+}
+
+/* ---------- Vertical rhythm ---------- */
+
+/* Stack text vertically with a single gap instead of one-off margins.
+   The layout rule is shared by the base class and every modifier, so a
+   `ds-stack--*` class also works on its own without `ds-stack`: a missing
+   base class can no longer silently collapse a stack to a 0px gap. Each
+   modifier then sets only its own gap (--stack-gap) or its centering. */
+.ds-stack--center,
+.ds-stack--start,
+.ds-stack--sm,
+.ds-stack--md,
+.ds-stack--lg,
+.ds-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, 16px);
+  align-items: stretch;
+}
+.ds-stack--sm { --stack-gap: 8px; }
+.ds-stack--md { --stack-gap: 16px; }
+.ds-stack--lg { --stack-gap: 32px; }
+
+/* Start-aligned stack: children stay content-sized instead of stretching to
+   fill the stack. Use this where full-width children would be wrong. */
+.ds-stack--start { align-items: flex-start; }
+
+/* Centers a stack's children cross-axis (and their inline content). For stacks
+   whose content is meant to be centered: hero badge, h1, lead, CTA row,
+   guarantee line, empty state. */
+.ds-stack--center {
+  align-items: center;
+  text-align: center;
+}
+
+/* Buttons and badges never stretch inside a stack — they stay content-sized
+   even when the stack stretches its other children to full width. */
+.ds-stack > .ds-btn,
+.ds-stack > a.ds-btn,
+.ds-stack > .ds-icon-btn,
+.ds-stack > .ds-badge-dark,
+.ds-stack > .ds-badge-light,
+.ds-stack > .ds-badge-soon {
+  align-self: flex-start;
+}
+
+/* Standard gaps: h2 followed by body text 16px (ds-stack--md); a section
+   heading followed by its content 32px (ds-stack--lg), 48px on desktop when
+   the content is a card grid; card label, title and text 8px apart (.ds-card). */
+
+.ds-scroll-wrap {
+  overflow: auto;
+  max-width: 100%;
+  min-width: 0;
+  position: relative;
 }
 
 .ds-sr-only {
@@ -363,6 +424,14 @@ a:hover {
   cursor: pointer;
   background: transparent;
   color: inherit;
+  text-decoration: none;
+}
+
+/* Buttons never underline, in any state (hover, focus, visited). */
+.ds-btn:hover,
+.ds-btn:focus-visible,
+.ds-btn:visited {
+  text-decoration: none;
 }
 
 .ds-btn .ds-icon {
@@ -433,6 +502,7 @@ a:hover {
   background: var(--color-studio-black);
   color: #fff;
   padding: 8px 13px 8px 8px;
+  gap: 8px;
   font-weight: 550;
   font-size: 14px;
   letter-spacing: 0.14px;
@@ -464,6 +534,9 @@ a:hover {
   border-radius: 20px;
   padding: 20px;
   box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .ds-card-label {
@@ -488,6 +561,10 @@ a:hover {
 
 /* --- Media backdrop / glow / gradient word --- */
 .ds-field {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border-radius: 20px;
   padding: 40px;
   background: radial-gradient(ellipse at 50% 0%, var(--color-glow-a) 0%, var(--color-glow-b) 100%);
@@ -518,7 +595,7 @@ a:hover {
 /* --- Dark band / proof panel --- */
 .ds-band {
   width: 100%;
-  padding: 96px 48px;
+  padding: 96px 0;
   background: var(--color-studio-black);
   color: #fff;
 }
@@ -539,6 +616,7 @@ a:hover {
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
+  padding-block: 10px;
   font-size: 14px;
   line-height: 32px;
   color: #d4d4d8;
@@ -678,7 +756,7 @@ a:hover {
 }
 
 .ds-rail-soon {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 550;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -697,6 +775,22 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Rotated sheet page wrapper. The badge and page number live outside it so
+   they never rotate. --scale shrinks the page at 90/270° so it never overlaps
+   the badge/number around the sheet's corners. */
+.ds-sheet-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border-radius: 10px;
+  overflow: hidden;
+  transform: rotate(var(--rotate, 0deg)) scale(var(--scale, 1));
+  transform-origin: center;
+  transition: transform 200ms ease;
 }
 
 .ds-sheet--selected {
@@ -744,6 +838,7 @@ a:hover {
   height: 9px;
   border-radius: 3px;
   background: #d4d4d8;
+  margin-bottom: 6px;
 }
 
 .ds-shape-block {
@@ -751,6 +846,24 @@ a:hover {
   height: 58px;
   border-radius: 6px;
   background: #f4f4f5;
+}
+
+.ds-shape-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 96px;
+  margin: 6px 0;
+}
+
+.ds-shape-chart .bar {
+  flex: 1;
+  border-radius: 3px;
+  background: #e4e4e7;
+}
+
+.ds-shape-chart .bar.dark {
+  background: #d4d4d8;
 }
 
 .ds-floatbar {
@@ -774,6 +887,9 @@ a:hover {
 }
 
 .ds-floatbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   height: 40px;
   padding: 0 12px;
   border-radius: 10px;
@@ -784,6 +900,7 @@ a:hover {
   font-size: 13px;
   font-family: var(--font-google-sans-flex);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .ds-floatbar-btn:hover {
@@ -845,6 +962,7 @@ a:hover {
 
 .ds-stat-row {
   display: flex;
+  width: 100%;
   justify-content: space-between;
   font-size: 14px;
   line-height: 20px;
@@ -856,6 +974,15 @@ a:hover {
 .ds-stat-value {
   font-weight: 550;
   color: var(--color-absolute-ink);
+}
+
+/* The stat group holds the three stat rows so they sit 4px apart while the
+   section gap (12px) applies to the group as a whole. Each row stretches to
+   the section width so label-left / value-right keeps its space. */
+.ds-stat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .ds-dropzone {
@@ -1032,11 +1159,15 @@ a:hover {
   justify-content: center;
   gap: 36px;
   padding: 32px 0 72px;
-  max-width: 720px;
 }
 
 /* Bottom padding so the floating bar (pinned above shell-main's bottom edge)
    lands over grid padding instead of over the last row of sheets. */
+
+/* Style-guide only: the design-system composites cap the sheet grid at 720px.
+   #page-grid (editor.html) carries this class without the cap so it fills
+   #grid-wrap: 4 columns of 196px at 1440px, 3 at 1280px, centered. */
+.ds-guide .ds-sheet-grid { max-width: 720px; }
 
 .ds-pos-rel {
   position: relative;
@@ -1116,7 +1247,7 @@ a:hover {
 .ds-sg-w-100 { width: 100px; }
 .ds-sg-w-120 { width: 120px; }
 .ds-sg-w-160 { width: 160px; }
-.ds-sg-w-260 { width: 260px; }
+.ds-sg-w-260 { width: 260px; max-width: 100%; }
 .ds-sg-h-20 { height: 20px; }
 .ds-sg-h-32 { height: 32px; }
 .ds-sg-h-120 { height: 120px; }
@@ -1216,30 +1347,27 @@ a:hover {
 }
 
 .ds-hero .ds-badge-dark {
-  margin-bottom: 24px;
+  align-self: center;
+  margin-bottom: 0;
 }
 
 .ds-hero h1,
 .ds-hero .ds-text-display {
   max-width: 820px;
-  margin: 0 auto 20px;
+  margin: 0 auto;
 }
 
 .ds-hero-ctas {
   display: inline-flex;
   gap: 32px;
   align-items: center;
-  margin-top: 0;
-  margin-bottom: 16px;
+  justify-content: center;
+  align-self: center;
 }
 
 .ds-hero-lead {
   max-width: 620px;
-  margin: 0 auto 32px;
-}
-
-.ds-hero-signoff {
-  margin-top: 0;
+  margin: 0 auto;
 }
 
 .ds-hero-media {
@@ -1255,11 +1383,10 @@ a:hover {
   position: relative;
   max-width: 760px;
   margin: 0 auto;
-  height: 300px;
 }
 
 .ds-hero-window {
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* Hero visual: studio-black rail, mini sheet grid, floating bar. */
@@ -1274,15 +1401,14 @@ a:hover {
 
 .ds-hero-sheets {
   display: grid;
-  grid-template-columns: repeat(4, 88px);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  padding: 20px 20px 20px 76px;
+  padding: 20px 20px 72px 76px;
   margin: 0;
   list-style: none;
 }
 
 .ds-hero-sheet {
-  width: 88px;
   height: 118px;
   border-radius: 10px;
   border: 1px solid var(--color-border-soft);
@@ -1296,7 +1422,7 @@ a:hover {
 
 .ds-hero-sheet--selected {
   outline: 2px solid var(--color-electric-capture-blue);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .ds-hero-line {
@@ -1325,6 +1451,8 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
+  width: max-content;
   padding: 6px 10px;
   border-radius: 14px;
   background: var(--color-studio-black);
@@ -1333,6 +1461,13 @@ a:hover {
   font-size: 13px;
   line-height: 1.2;
   font-family: var(--font-google-sans-flex);
+}
+
+.ds-hero-floatbar-label {
+  font-weight: 550;
+  font-size: 13px;
+  color: var(--color-on-dark);
+  white-space: nowrap;
 }
 
 .ds-hero-floatbar .ds-floatbar-btn {
@@ -1365,14 +1500,19 @@ a:hover {
 }
 
 .ds-dropzone--hero {
-  border-top: 1px solid var(--color-border-soft);
-  padding: 20px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  padding: 56px 32px;
+  border-radius: 16px;
+  border: 1.5px dashed var(--color-border-soft);
   background: #fff;
   cursor: pointer;
+  margin-top: 16px;
+}
+.ds-dropzone--hero > .ds-badge-light {
+  margin-top: 6px; /* 10px gap + 6px margin => badge sits 16px below the hint */
 }
 
 .ds-dropzone--hero:focus-visible {
@@ -1412,7 +1552,7 @@ a:hover {
   flex-wrap: wrap;
   gap: 56px;
   justify-content: center;
-  padding: 56px 0;
+  padding-block: 56px;
   border-bottom: 1px solid var(--color-border-soft);
   margin-bottom: 80px;
 }
@@ -1440,7 +1580,7 @@ a:hover {
 }
 
 .ds-land-list {
-  margin: 16px 0 16px 24px;
+  margin: 32px 0 0 24px;
   padding: 0;
   list-style: decimal;
 }
@@ -1455,16 +1595,14 @@ a:hover {
 /* --- How it works cards --- */
 
 .ds-card-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 32px;
+  margin-block-start: 32px;
 }
 
 .ds-card-grid .ds-card {
-  flex: 1 1 260px;
-  max-width: 380px;
+  width: 100%;
 }
 
 /* --- Feature rows --- */
@@ -1486,6 +1624,9 @@ a:hover {
 }
 
 .ds-feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   max-width: 480px;
   flex: 0 0 auto;
 }
@@ -1516,17 +1657,18 @@ a:hover {
 }
 
 .ds-feature-sheets {
-  display: grid;
-  grid-template-columns: repeat(3, 72px);
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 16px 16px 16px 72px;
   margin: 0;
   list-style: none;
-  align-content: start;
+  align-items: flex-start;
 }
 
 .ds-feature-sheet {
-  width: 72px;
+  flex: 1 1 0;
+  min-width: 0;
   height: 96px;
   border-radius: 8px;
   border: 1px solid var(--color-border-soft);
@@ -1574,11 +1716,10 @@ a:hover {
   line-height: 20px;
   letter-spacing: 0.14px;
   color: var(--color-electric-capture-blue);
-  margin-bottom: 10px;
 }
 
 .ds-feature-title {
-  margin: 0 0 12px;
+  margin: 0;
   font-weight: 600;
   font-size: 28px;
   line-height: 34px;
@@ -1598,7 +1739,15 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  margin-top: 40px;
+  margin-block-start: 32px;
+}
+
+@media (min-width: 900px) {
+  .ds-card-grid,
+  .ds-tools-grid,
+  .ds-promise-grid {
+    margin-block-start: 48px;
+  }
 }
 
 .ds-tool-card {
@@ -1760,17 +1909,14 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 24px;
-  margin-top: 32px;
+  margin-block-start: 32px;
+  margin-block-end: 32px; /* 32px between the promise cards and the proof field below */
 }
 
 /* --- Privacy page hero --- */
 
 .ds-page-hero {
   padding: 60px 0 40px;
-}
-
-.ds-page-hero h1 {
-  margin-bottom: 16px;
 }
 
 #verify { margin-top: 80px; }
@@ -1787,7 +1933,7 @@ a:hover {
 
 .ds-band a {
   color: var(--color-paper-white);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .ds-band-text {
@@ -1885,6 +2031,7 @@ a:hover {
 .ds-badge-soon {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   border-radius: 14px;
   background: #fff;
   color: var(--color-graphite);
@@ -1936,8 +2083,9 @@ a:hover {
     flex-wrap: wrap;
     gap: 16px 32px;
   }
+  .ds-card-grid,
   .ds-tools-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
   .ds-step-cards {
     grid-template-columns: repeat(2, 1fr);
@@ -1997,4 +2145,17 @@ a:hover {
   .ds-field {
     padding: 24px;
   }
+  .ds-footer.ds-container { padding: 40px 24px; }
+  .ds-hero-floatbar { gap: 6px; font-size: 11px; }
+  .ds-hero-floatbar-btn { padding: 0 6px; }
+}
+
+@media (max-width: 479px) {
+  .ds-field { padding: 16px; }
+  .ds-hero-sheets {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 10px;
+    padding: 12px 12px 12px 60px;
+  }
+  .ds-hero-sheet { height: 96px; }
 }

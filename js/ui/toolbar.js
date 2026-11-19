@@ -19,8 +19,8 @@ export function mountSubToolbar(root, opts = {}) {
 
   return {
     setSize(size) {
-      sizeLarge.classList.toggle("is-active", size === "large");
-      sizeSmall.classList.toggle("is-active", size === "small");
+      sizeLarge.classList.toggle("ds-segment--active", size === "large");
+      sizeSmall.classList.toggle("ds-segment--active", size === "small");
     },
   };
 }

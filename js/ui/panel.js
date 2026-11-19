@@ -52,10 +52,10 @@ export function mountPanel(root, opts = {}) {
       statSize.textContent = formatBytes(state.totalSize);
 
       exportSelected.textContent = `Selected (${state.selected.length})`;
-      exportAll.classList.toggle("is-active", state.exportMode === "all");
-      exportSelected.classList.toggle("is-active", state.exportMode === "selected");
+      exportAll.classList.toggle("ds-segment--active", state.exportMode === "all");
+      exportSelected.classList.toggle("ds-segment--active", state.exportMode === "selected");
 
-      if (!editingName) docName.value = state.fileName;
+      if (!editingName) docName.value = state.fileName.replace(/\.pdf$/i, "");
 
       sourceList.textContent = "";
       state.sourceFiles.forEach((file) => {

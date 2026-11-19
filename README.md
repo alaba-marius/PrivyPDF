@@ -21,7 +21,8 @@ Then open http://localhost:8000. Serve over HTTP rather than opening index.html 
 | index.html | Landing page |
 | privacy.html | Privacy model and verification guidance |
 | editor.html | Editor frontend (demo mode): page grid, selection, rotate, duplicate, delete, undo/redo |
-| css/main.css | Shared styles |
+| css/theme.css | Design system tokens and ds- components (fonts, colors, radii, touch targets) |
+| css/editor.css | Editor shell layout glue (theme supplies the component layer) |
 | js/ | Landing page and shared UI modules |
 | assets/ | Brand logo and icon |
 | vendor/ | Self-hosted PDF.js, pdf-lib, and fonts |
@@ -63,17 +64,18 @@ or a running site:
 node scripts/check-headers.mjs http://localhost:8000
 ```
 
-The CSP (`script-src 'self' 'wasm-unsafe-eval'`, `style-src 'self' 'unsafe-inline'`) keeps `unsafe-inline` for styles because `index.html` and `privacy.html` still carry inline `style=""` attributes — moving those to stylesheets is what remains before a stricter CSP.
+The CSP (`script-src 'self' 'wasm-unsafe-eval'`, `style-src 'self'`) drops `unsafe-inline` everywhere: no page carries inline `style=""` attributes or `<style>` blocks, and every dynamic style is set through the CSSOM from js/. Verified by `tests/css-classes.test.mjs` and `tests/pages-hygiene.test.mjs`.
 
 On nginx (the Docker image), replicate the `_headers` directives with `add_header` in the server block; `_headers` itself is only honored by hosts that support it, which is why `vercel.json` carries the same headers for Vercel.
 
 ### Design system
 
-PrivyPDF's design system lives in `css/theme.css` (added in D1). It defines the font face, design tokens, base layer and the `ds-` component layer. Every class is prefixed with `ds-` so it never collides with `css/main.css` or `css/editor.css`.
+PrivyPDF's design system lives in `css/theme.css` (added in D1). It defines the font face, design tokens, base layer and the `ds-` component layer. Every class is prefixed with `ds-` so it never collides with legacy classes.
 
-- `css/theme.css` — tokens, base layer and `ds-` components. Consumed by `design-system.html` and by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels. It changes no existing page.
+- `css/theme.css` — tokens, base layer and `ds-` components. Consumed by `design-system.html` and by the D2 (landing, privacy, shared nav/footer) and D3 (editor) remodels.
+- `css/editor.css` — thin layout glue for the editor shell (D3). `css/main.css` was deleted in D3; the editor no longer uses it.
 - `design-system.html` — dev-only style guide (`meta robots noindex`). Shows every token and component at default, hover, focus and disabled states, on white and on a Studio Black band, plus landing-hero and editor-shell composites. Open it at `/design-system.html` when running locally. Not shipped to customers.
-- Existing pages and stylesheets — `index.html`, `privacy.html`, `editor.html`, `css/main.css` and `css/editor.css` are unchanged in D1 and stay as-is until the D2 and D3 remodels migrate them to the design system.
+- Existing pages — `index.html` and `privacy.html` (D2) and `editor.html` (D3) are migrated to the design system. `editor.html` keeps all its original ids; only its classes changed.
 
 `DESIGN.md` records the design direction the token block was built from.
 
