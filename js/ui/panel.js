@@ -1,13 +1,16 @@
 // Right-hand editor panel: document info, export controls, live privacy
-// counter and keyboard shortcuts. All mutations go through callbacks.
+// counter, the source-file list and keyboard shortcuts. All mutations go
+// through callbacks.
 import { formatBytes } from "../file-manager.js";
 import { subscribe as subscribeMeter } from "../core/privacy-meter.js";
+import { hydrateIcons } from "../icons.js";
 
 export function mountPanel(root, opts = {}) {
   const {
     onFileNameChange,
     onExportModeChange,
     onDownloadPDF,
+    onSourceRemove,
   } = opts;
 
   const docName = root.querySelector("#doc-name");
@@ -61,7 +64,24 @@ export function mountPanel(root, opts = {}) {
       state.sourceFiles.forEach((file) => {
         const item = document.createElement("div");
         item.className = "source-item";
-        item.textContent = `${file.name} · ${formatBytes(file.size)} · ${file.type === "application/pdf" ? "PDF" : "image"}`;
+
+        const name = document.createElement("span");
+        name.className = "source-item-name";
+        const type = file.type === "application/pdf" ? "PDF" : "image";
+        name.textContent = `${file.name} · ${formatBytes(file.size)} · ${type}`;
+        item.appendChild(name);
+
+        const remove = document.createElement("button");
+        remove.className = "ds-icon-btn";
+        remove.setAttribute("aria-label", `Remove ${file.name}`);
+        remove.innerHTML = '<i data-icon="x"></i>';
+        remove.addEventListener("click", (event) => {
+          event.stopPropagation();
+          onSourceRemove?.(file.id);
+        });
+        item.appendChild(remove);
+
+        hydrateIcons(item);
         sourceList.appendChild(item);
       });
     },

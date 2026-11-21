@@ -24,7 +24,6 @@
         <div class="top-centre">
           <div class="file-name" id="file-name">Annual-report.pdf</div>
           <span class="ds-badge-dark" aria-hidden="true"><span class="ds-badge-dot" aria-hidden="true"></span>On this device only</span>
-          <span id="demo-badge" class="ds-badge-light" aria-hidden="true">Demo with sample pages</span>
         </div>
         <div class="top-right">
           <button class="ds-btn ds-btn--sm ds-btn--outline" id="add-files" aria-label="Add files"><i data-icon="plus"></i><span>Add files</span></button>
@@ -37,9 +36,9 @@
       <div class="app-body">
         <nav class="rail ds-rail" id="rail">
           <button class="ds-rail-item ds-rail-item--active" aria-current="true" data-tool="pages"><i data-icon="layers"></i><span>Pages</span></button>
-          <button class="ds-rail-item" data-tool="merge" id="rail-merge"><i data-icon="file-plus"></i><span>Merge</span></button>
-          <button class="ds-rail-item" data-tool="images" id="rail-images"><i data-icon="image"></i><span>Images</span></button>
-          <button class="ds-rail-item" data-tool="extract" id="rail-extract"><i data-icon="scissors"></i><span>Extract</span></button>
+          <button class="ds-rail-item" data-tool="merge" id="rail-merge" aria-label="Add PDFs to merge"><i data-icon="file-plus"></i><span>Merge</span></button>
+          <button class="ds-rail-item" data-tool="images" id="rail-images" aria-label="Add images as pages"><i data-icon="image"></i><span>Images</span></button>
+          <button class="ds-rail-item" data-tool="extract" id="rail-extract" aria-label="Extract selected pages"><i data-icon="scissors"></i><span>Extract</span></button>
           <div class="rail-divider" aria-hidden="true"></div>
           <button class="ds-rail-item ds-rail-item--soon" disabled data-tool="annotate"><i data-icon="pen"></i><span>Annotate</span><span class="rail-soon">Soon</span></button>
           <button class="ds-rail-item ds-rail-item--soon" disabled data-tool="text"><i data-icon="type"></i><span>Text</span><span class="rail-soon">Soon</span></button>
@@ -76,9 +75,6 @@
             </div>
             <div class="loading" id="loading-state" hidden>
               <div class="skeleton-grid" id="skeleton-grid"></div>
-            </div>
-            <div class="info-card ds-card" id="info-card" hidden>
-              <p>Page previews arrive in the next phase. Your files are loaded and stay on this device.</p>
             </div>
             <div class="drag-overlay" id="drag-overlay">
               <div class="drag-text ds-sr-only">Drop files to add them</div>
@@ -124,6 +120,7 @@
               <div>
                 <span class="privacy-text"><span id="privacy-count">0</span> requests to other servers since you opened this file</span>
                 <p class="privacy-fine">Files held in memory only. Nothing is sent to other servers.</p>
+                <p class="privacy-fine">Pages are rendered by pdf.js and exported by pdf-lib, both served from this site.</p>
               </div>
             </div>
             <a class="privacy-link" href="/privacy.html#verify">How to verify</a>

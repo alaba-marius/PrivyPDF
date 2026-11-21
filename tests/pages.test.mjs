@@ -8,6 +8,8 @@ import {
   rotateSelected,
   duplicateSelected,
   deleteSelected,
+  moveSelected,
+  effectiveRotation,
 } from "../js/core/pages.js";
 
 const page = (id, rotated = 0) => ({ id, rotated });
@@ -238,4 +240,66 @@ test("deleteSelected acts on a page selected by string id", (t) => {
     "p6",
     "p7",
   ]);
+});
+
+const fullPage = (id, baseRotation = 0, rotated = 0) => ({
+  id,
+  sourceId: "s1",
+  index: 0,
+  baseRotation,
+  rotated,
+  width: 612,
+  height: 792,
+});
+const docPages = () => [
+  fullPage("p1", 0, 0),
+  fullPage("p2", 90, 0),
+  fullPage("p3", 0, 90),
+  fullPage("p4", 270, 90),
+];
+
+test("effectiveRotation is the file rotation plus the user rotation", (t) => {
+  assert.equal(effectiveRotation(docPages()[0]), 0);
+  assert.equal(effectiveRotation(docPages()[1]), 90);
+  assert.equal(effectiveRotation(docPages()[2]), 90);
+  assert.equal(effectiveRotation(docPages()[3]), 0); // 270 + 90 wraps to 0
+});
+
+test("effectiveRotation wraps negative results", (t) => {
+  assert.equal(
+    effectiveRotation({ ...fullPage("p1", 0), rotated: 270 }),
+    270,
+  );
+});
+
+test("moveSelected moves the focused page when nothing is selected", (t) => {
+  const pages = docPages();
+  const next = moveSelected(pages, [], "p3", 0);
+  assert.deepStrictEqual(next.map((p) => p.id), ["p3", "p1", "p2", "p4"]);
+});
+
+test("moveSelected moves the focused page to the end", (t) => {
+  const pages = docPages();
+  const next = moveSelected(pages, [], "p1", 100);
+  assert.deepStrictEqual(next.map((p) => p.id), ["p2", "p3", "p4", "p1"]);
+});
+
+test("moveSelected moves the selected block as a block", (t) => {
+  const pages = docPages();
+  const next = moveSelected(pages, ["p2", "p3"], "p1", 0);
+  assert.deepStrictEqual(next.map((p) => p.id), ["p2", "p3", "p1", "p4"]);
+});
+
+test("moveSelected clamps the insertion index", (t) => {
+  const pages = docPages();
+  const left = moveSelected(pages, ["p4"], "p4", -5);
+  assert.deepStrictEqual(left.map((p) => p.id), ["p4", "p1", "p2", "p3"]);
+  const right = moveSelected(pages, ["p1"], "p1", 100);
+  assert.deepStrictEqual(right.map((p) => p.id), ["p2", "p3", "p4", "p1"]);
+});
+
+test("moveSelected with empty selection and no focused id is a no-op", (t) => {
+  const pages = docPages();
+  const next = moveSelected(pages, [], null, 1);
+  assert.deepStrictEqual(next.map((p) => p.id), ["p1", "p2", "p3", "p4"]);
 });

@@ -165,6 +165,17 @@ html { overflow: hidden; }
   margin-top: auto;
 }
 
+.page-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.thumb-skeleton {
+  width: 100%;
+  height: 100%;
+}
+
 /* ---------- Add tile ---------- */
 
 .add-tile {
@@ -226,9 +237,20 @@ html { overflow: hidden; }
 .source-files { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
 
 .source-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--color-soft-charcoal);
+}
+
+.source-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .export-caption {
@@ -412,7 +434,7 @@ html { overflow: hidden; }
   .top-left { width: auto; }
   .wordmark { display: none; }
   .file-name { font-size: 13px; line-height: 18px; }
-  .ds-badge-dark, #demo-badge { display: none; }
+  .ds-badge-dark { display: none; }
   .top-right { gap: 6px; }
   #add-files, #btn-download, #top-details {
     width: 44px; height: 44px; padding: 0; min-width: 44px;

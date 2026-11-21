@@ -2,7 +2,7 @@
 
 PrivyPDF is a private PDF toolkit that runs entirely in your browser. No uploads, no accounts, no trackers — your documents never leave your device.
 
-> The editor at /editor.html is live in demo mode: a seven-page document you can select, rotate, duplicate, delete and undo, with nothing uploaded — everything stays on this device.
+> The editor at /editor.html opens on an empty document. Select, rotate, duplicate, delete and reorder pages, then export a real PDF — nothing is uploaded, everything stays on this device.
 
 ## Run locally
 
@@ -20,7 +20,7 @@ Then open http://localhost:8000. Serve over HTTP rather than opening index.html 
 | --- | --- |
 | index.html | Landing page |
 | privacy.html | Privacy model and verification guidance |
-| editor.html | Editor frontend (demo mode): page grid, selection, rotate, duplicate, delete, undo/redo |
+| editor.html | Editor frontend: page grid with real PDF previews, selection, rotate, duplicate, delete, reorder, undo/redo and export |
 | css/theme.css | Design system tokens and ds- components (fonts, colors, radii, touch targets) |
 | css/editor.css | Editor shell layout glue (theme supplies the component layer) |
 | js/ | Landing page and shared UI modules |
@@ -38,17 +38,14 @@ No uploads. Everything is processed in the browser with self-hosted engines (PDF
 
 The editor at `/editor.html` is a static, no-build-step page: plain HTML and vanilla JavaScript ES modules, served like the rest of the site (`python3 -m http.server 8000`).
 
-### Demo mode
+### Opening files
 
-Open `/editor.html#demo` for a seven-page demo document. It exercises the layout, page selection (click, `Shift`+`click` for a range, `Ctrl`+`click` to toggle), rotation (`R`), duplicate, delete and undo/redo (`Ctrl`+`Z`, `Ctrl`+`Shift`+`Z`) without picking a file.
-
-### File loading
-
-Files come from the landing page hero dropzone (IndexedDB handoff, deleted the moment the editor opens them) or from "Add files" / drag-and-drop in the editor. Every file is validated by magic bytes (`%PDF-`, PNG, JPEG) and size before it is read; nothing is uploaded.
+The editor opens empty (`/editor.html#demo` behaves the same as `/editor.html`). Open real PDFs and images from the landing page hero dropzone (IndexedDB handoff, deleted the moment the editor opens them) or from "Add files" / drag-and-drop in the editor. Every file is validated by magic bytes (`%PDF-`, PNG, JPEG) and size before it is read; PDF pages render with pdf.js and images decode natively; nothing is uploaded.
 
 ### What is not implemented yet
 
-Export/Download, Merge, Images, Extract, Annotate, Text, Sign and Protect are placeholders this phase ("coming in the next phase"). Real page previews (pdf.js rendering) arrive in the next phase; the demo grid draws placeholder sheet shapes.
+Annotate, Text, Sign and Protect are marked Soon (not yet built). Organize pages,
+Merge PDFs, Images to PDF and Extract pages are live in the editor.
 
 ### Security headers
 
@@ -91,30 +88,34 @@ This runs every `*.test.mjs` under `tests/`. One `test()` per behavior, so a sin
 
 ## Manual QA
 
-Open `/editor.html#demo` (seven-page demo document) and run each step. Results assume
-mouse/keyboard unless a step says otherwise.
+Open `/editor.html` with a real PDF (for example one of `tests/fixtures/one-page.pdf`, `tests/fixtures/three-page.pdf` or `tests/fixtures/rotated.pdf`) and run each step. Results assume mouse/keyboard unless a step says otherwise.
 
 | Step | Action | Expected result |
 | --- | --- | --- |
-| 1 | Click a page card | The card highlights (check mark shown, `aria-selected="true"`), the float bar appears with "1 selected", and the sub-status count updates. |
-| 2 | Ctrl+click the same card | It deselects; highlight, float bar and count update. |
-| 3 | Click page 3, then Shift+click page 6 | Exactly pages 3–6 are selected; the range anchor stays at page 3. |
-| 4 | Shift+click page 2 while anchored at 3 | Selection becomes pages 2–6; the anchor is unchanged. |
-| 5 | Shift+click any page with no anchor set | Only that page is selected. |
+| 1 | Open the editor with no file | The grid is empty ("No document" in the top bar, empty-state card shown); Download, Select all, Undo, Redo and both export segments are disabled. |
+| 2 | Drop or choose a real PDF | The file parses, its pages appear as cards with real pdf.js previews, the top bar shows the file name and the right panel lists the source file; nothing is uploaded and nothing persists after a reload. |
+| 3 | Click a page card | The card highlights (check mark shown, `aria-selected="true"`), the float bar appears with "1 selected", and the sub-status count updates. |
+| 4 | Ctrl+click the same card | It deselects; highlight, float bar and count update. |
+| 5 | Click page 1, then Shift+click page 3 | Exactly pages 1–3 are selected; the range anchor stays at page 1. |
 | 6 | Tab focus onto a card, then Space | Selection toggles on that card; focus stays on it. |
 | 7 | Arrow keys move focus; Shift+Arrow extends the range | Focus moves to the target card; Shift+Arrow selects from the anchor to the target without moving the anchor. |
-| 8 | Select all | All seven pages are selected; clicking again selects none. |
-| 9 | Rotate (`R` or the float bar) with pages selected | Selected sheets rotate 90°; unselected sheets stay upright. |
-| 10 | Duplicate | Duplicates appear right after their originals with new unique ids (`p8`, `p9`…), become the selection, and Undo becomes available. |
-| 11 | Delete | Selected pages are removed; focus falls back to the first remaining page (nothing focuses when all pages are deleted). |
-| 12 | Undo (`Ctrl+Z`) / Redo (`Ctrl+Shift+Z`) | The last rotate/duplicate/delete reverses, then re-applies. Undo/Redo enable and disable with history. |
-| 13 | Large/Small | The grid switches between 196×254 and 140×181px cards. |
-| 14 | Empty state (no pages) | Download, Download PDF, Select all, Undo, Redo and both export segments are disabled. |
-| 15 | Demo mode with pages | All controls above are enabled; Download still shows the "coming soon" toast. |
-| 16 | Window at ~900px | The Details toggle opens the right panel as a slide-out drawer; Escape or clicking the scrim closes it. |
-| 17 | Window at 375px | No horizontal page scroll; the rail is a bottom bar; every top bar, sub-toolbar, right panel, drawer, float bar and rail control is at least 44×44px; the Large/Small toggle is hidden. |
-| 18 | Window at 1280px | The rail, page area and right panel sit side by side; opening Details shows the right panel inline beside the grid (no drawer). |
-| 19 | First click, selection, undo/redo | First click on an unfocused page selects it (no dropped click); every click, Space toggle, undo and redo updates the highlight and count with no console errors. |
-| 20 | Float bar at 375px | With pages selected, the float bar stays fully inside the viewport (8px from each side, above the bottom rail); every float-bar button is at least 44×44px; no horizontal page scroll. |
+| 8 | Select all | All pages are selected; clicking again selects none. |
+| 9 | Rotate (`R` or the float bar) with pages selected | Selected sheets rotate 90°; unselected sheets stay upright. On a rotated fixture (`rotated.pdf`), the user rotation stacks on top of the file's own 90° (/Rotate). |
+| 10 | Duplicate | Duplicates appear right after their originals with new unique ids, become the selection, and Undo becomes available. |
+| 11 | Delete | Selected pages are removed; focus falls back to the page that took their place (nothing focuses when all pages are deleted). |
+| 12 | Undo (`Ctrl`+`Z`) / Redo (`Ctrl`+`Shift`+`Z`) | The last rotate/duplicate/delete reverses, then re-applies. Undo/Redo enable and disable with history. |
+| 13 | Drag a page card to a new position | The page moves to the drop position; grid order and numbers update. Alt+Left/Right on a focused page moves it one position left or right. |
+| 14 | Large/Small | The grid switches between 196×254 and 140×181px cards. |
+| 15 | Remove the source file from the right panel | The source's pages leave the grid and the source leaves the list; focus and selection repair themselves. |
+| 16 | Export / Download PDF | A `.pdf` downloads containing the selected pages (or all pages when none are selected); user rotation is applied on top of each file's own rotation; images export as their own pages. |
+| 17 | Open a corrupt or password-protected PDF | A toast reports the rejection; no file names or contents appear in the toast; other files are unaffected. |
+| 18 | Rail Merge | Click the "Merge" rail item, choose several PDFs in the file chooser (PDF files only); their pages append in order; Download builds one PDF from all pages. |
+| 19 | Rail Images | Click the "Images" rail item, choose JPG/PNG files; each image becomes one page; Download builds a PDF from them. |
+| 20 | Rail / float Extract | Select one or more pages, then click "Extract" in the rail or the float bar; a file named "<doc name>-pages-<ranges>.pdf" (ranges like "3-5_9", stem truncated to 40 characters then "-etc") downloads containing exactly the selected pages. |
+| 21 | Rotate 90° | Select pages and press R (or click Rotate); selected sheets rotate 90°, unselected pages stay upright, and export applies the user rotation on top of each file's own /Rotate. |
+| 22 | Export metadata | Open the exported PDF's metadata; Producer and Creator both read "PrivyPDF". |
+| 23 | Window at ~900px | The Details toggle opens the right panel as a slide-out drawer; Escape or clicking the scrim closes it. |
+| 19 | Window at 375px | No horizontal page scroll; the rail is a bottom bar; every control is at least 44×44px. |
+| 20 | Window at 1280px | The rail, page area and right panel sit side by side; opening Details shows the right panel inline beside the grid (no drawer). |
 
-Steps 14–20 require resizing the viewport or reloading without `#demo`; steps 1–13 can be run in one `/editor.html#demo` session. Browser verification was not run in this session (see REPORT.md).
+Steps 21–23 require resizing the viewport; steps 1–20 can be run in one session. Browser verification was not run in this session (see REPORT.md).

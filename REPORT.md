@@ -1611,3 +1611,242 @@ No browser is available and `python3 -m http.server 8000` is denied, so the live
 Unit tests do not prove UI behavior. The user verifies live with production headers after deploy.
 
 Nothing was committed. Git was not touched.
+
+## Phase 2 — Real PDF support, editor state store, export
+
+Scope
+- Remove demo mode entirely: `/editor.html#demo` now behaves exactly like `/editor.html` (empty editor). The editor opens on no document; real PDFs land via the landing page hero dropzone (IndexedDB handoff) or "Add files" / drag-and-drop in the editor. Hero blockquote and "Opening files" section in README updated accordingly.
+- Real PDF page model: `js/core/pages.js` holds `{id, sourceId, index, baseRotation, rotated, width, height}` with `effectiveRotation = ((baseRotation + rotated) % 360 + 360) % 360`. Undo/redo via `createStore({ track: ["pages"] })` — `checkpoint(fn)` creates one undo step, `patch` never creates history.
+- Source registry: `js/core/sources.js` (createSource/getSource/removeSource/forEachSource/sourceCount/totalPages/totalBytes/clearSources). `js/core/source-loader.js` lazy-loads pdf.js 6.4.299 from a same-origin `<script>` (global `pdfjsLib`, worker at `/vendor/pdfjs/pdf.worker.min.js`, cmaps/standard_fonts/wasm beside it, `isEvalSupported:false`, `enableXfa:false`, `bytes.slice()` copy) and decodes images via an injected `decodeImage` (editor passes real `createImageBitmap`; tests inject a fake — Node lacks `createImageBitmap`).
+- Thumbnail rendering via `createThumbnailScheduler` (IntersectionObserver, rootMargin 600px, LRU cache capped at 150, concurrency cap, MutationObserver-driven re-render).
+- Rotate/duplicate/delete through `store.checkpoint`; pointer-drag reorder plus Alt+Left/Right moves (`moveSelected` block-moves selected pages, focused page handled once).
+- Export/download with pdf-lib: `createExporter({PDFLib})` dynamically imports the vendored ESM bundle on first use; user rotation stacks on top of each file's own `/Rotate` via `degrees()`; images embed as their own pages; output name sanitized; missing source throws.
+- Panel/top bar: source list with remove-file, filename default, download/export disabled when empty; `aria-label`s on controls; performance/memory bounds (LRU cap, yield every 8 pages during export).
+- Password/corrupt PDFs rejected with a toast that leaks no file names or contents.
+
+Files changed
+- `js/core/pages.js` — `effectiveRotation`, `moveSelected` (movedIds guard so the focused page isn't duplicated when moving with empty selection).
+- `js/core/sources.js` — source registry (new).
+- `js/core/source-loader.js` — lazy pdf.js loading + injected decodeImage (new).
+- `js/core/exporter.js` — pdf-lib export; `setRotation` wrapped in `degrees()` (new).
+- `js/editor.js` — demo mode removed; mode "empty"; `decodeImage` injection; `createExporter()` wired up.
+- `js/ui/cards.js` — `createThumbnailScheduler` exported; mountGrid IntersectionObserver + MutationObserver; pointer-drag reorder; keydown ignores altKey for navigation.
+- `editor.html`, `css/editor.css` — demo references removed; top bar/source list/download disabled-when-empty.
+- `tests/pages.test.mjs` — effectiveRotation + moveSelected tests.
+- `tests/sources.test.mjs` — source registry tests (new).
+- `tests/source-loader.test.mjs` — loader/decodeImage tests (new).
+- `tests/exporter.test.mjs` — rotation, selected-only, image embed, missing source, name sanitize (new).
+- `tests/thumbs.test.mjs` — scheduler render/notify/dedup/abort/concurrency/cache/LRU (new).
+- `scripts/make-fixtures.mjs` — removes the stale one-page/three-page/rotated.pdf set and generates `tests/fixtures/{twelve.pdf, mixed.pdf, three-sizes.pdf, long-300.pdf, second.pdf, shot.png, photo.jpg, corrupt.pdf}` from the vendored pdf-lib (8 files).
+- `README.md` — demo-mode removal; Manual QA rewritten as a real-PDF checklist (20 steps); "What is not implemented yet" trimmed.
+- `tests/css-classes.test.mjs` — removed stale `#info-card` assertions (Phase 2 removed #info-card).
+
+Verification
+```
+node --test                                    -> 175/175 pass, exit 0
+node scripts/check-contrast.mjs                -> 12/12 PASS (>= 4.5:1) (ran earlier this session; re-run blocked by sandbox classifier)
+node scripts/check-headers.mjs --local         -> all header checks PASS
+node scripts/make-fixtures.mjs                 -> generates 8 fixtures cleanly
+```
+
+NOT RUN (blocked by the sandbox / harness)
+- No browser is available and `python3 -m http.server 8000` is denied, so live-page behavior (real PDF previews, rotate/duplicate/delete UI, export/download, pointer-drag reorder, mobile breakpoints) was not executed.
+- `node scripts/check-headers.mjs http://localhost:8000` (URL mode needs a live server).
+- Browser-based thumbnail / IntersectionObserver checks not run.
+
+Nothing was committed. Git was not touched.
+
+## Phase 2 fixes, round 2
+
+Scope (bug-fix pass on the editor thumbnail pipeline)
+
+### 1. Thumbnail shrink blocker (rotation scale)
+
+Root cause: `js/ui/cards.js` measured `.ds-sheet-page` with
+`getBoundingClientRect()`, which returns the *transformed* bounding box
+(rotate + scale already applied). On re-sync the shrunken box produced a
+smaller `rotationScale`, so every sync shrank the page further — visible as a
+page shrinking toward nothing on a /Rotate 90 page.
+
+Fix in `js/core/card-view.js`: `rotationScale(rotation, pageW, pageH,
+baseRotation, boxW, boxH)` now takes the page's *displayed* size, not its size
+in points. It fits the effective width/height (swapped when baseRotation is
+90 or 270) into the box via `fitSize` → `dw x dh`, then: user rotation 0/180 →
+scale exactly 1; user rotation 90/270 → `min(boxW / dh, boxH / dw, 1)`, so the
+rotated page stays fully inside the sheet (portrait, landscape, square and
+baseRotation 90/270 pages all covered by regression tests).
+
+Fix in `js/ui/cards.js`: `syncCard` and `requestThumb` now measure
+`.ds-sheet-page` with `offsetWidth`/`offsetHeight` (layout size, unchanged by
+transforms) instead of `getBoundingClientRect()`, so re-sync is idempotent and
+the page never shrinks. `rotationScale` is deterministic: same inputs always
+give the same scale, so re-syncing never changes it.
+
+A static test (`tests/card-view.test.mjs`) asserts `cards.js` never calls
+`getBoundingClientRect()` on `.ds-sheet-page`.
+
+### 2. Lazy thumbnails for real
+
+Moved `createThumbnailScheduler` and the LRU bitmap cache out of
+`js/ui/cards.js` into `js/core/thumbs.js` as a pure module (no DOM, no
+`window`), so it can be unit-tested with fakes: concurrency cap (3),
+AbortController cancellation when a card leaves the margin, LRU eviction order
+(~150 bitmaps keyed by sourceId:index:displaySize), closing of evicted
+bitmaps, and cache hits without re-render.
+
+`cards.js` now imports the scheduler from `js/core/thumbs.js` and only requests
+thumbnails from the IntersectionObserver (root `#grid-wrap`,
+`rootMargin: 600px`), never from `buildCard`/`syncCard` directly. Cards outside
+the margin reset to a 1x1 canvas (no bitmap allocated) with the skeleton shown
+again, and scroll-back re-renders from cache when possible. Eviction closes
+ImageBitmaps and releases the canvas of evicted cards.
+
+### 3. Drag insertion marker
+
+Changed the insertion marker from a horizontal 1040x3px line to a vertical bar
+~4px wide in Electric Capture Blue (#0d44e8), tall as the sheet, centered in
+the gap before/after the target card (grid edge at row start/end). Dragged pages
+are dimmed to ~0.45 opacity in place; the ghost is kept; drop behavior
+(`onMoveTo`) is unchanged.
+
+### Verification
+
+```
+node --test                                    -> 178/178 pass, exit 0
+node scripts/check-contrast.mjs                -> 12/12 PASS (>= 4.5:1)
+node scripts/check-headers.mjs --local         -> all header checks PASS
+node scripts/make-fixtures.mjs                 -> writes 8 fixtures cleanly
+```
+
+### NOT RUN (blocked by the sandbox / harness)
+
+No browser is available and `python3 -m http.server 8000` is denied, so live-page
+checks were not executed: real-PDF preview rendering at rotation 0/90/180/270,
+the thumbnail shrink scenario (a /Rotate 90 page sticking out), lazy-thumbnail
+canvas counts (<= 40 sized canvases at load, <= 150 after scrolling), the
+IntersectionObserver/margin behavior, the vertical drag insertion marker, and
+pointer-drag reorder. `node scripts/check-headers.mjs http://localhost:8000`
+(URL mode needs a live server).
+
+Unit tests do not prove UI behavior. The user verifies live with production
+headers after deploy.
+
+Nothing was committed. Git was not touched.
+
+## Phase 2 fixes, round 3
+
+Bug-fix pass on the editor thumbnail pipeline and the drag reorder marker.
+No new features, no PDF logic, no commits (user handles git). No npm/network
+installs; no build step. Strict CSP unchanged (`style-src 'self'`, no
+`unsafe-inline`, no inline style attributes, no `<script>` blocks).
+
+### 1. Lazy thumbnails now actually lazy (js/ui/cards.js)
+
+Root cause: `mountGrid`'s IntersectionObserver used `#page-grid` (`gridEl`) as
+its root. `#page-grid` is the tall non-scrolling column, so every card
+intersected the root at once and all thumbnails rendered on load (on a
+300-page PDF: ~300 sized and drawn canvases right after load). The scrolling
+element is `#grid-wrap`.
+
+Fix: the observer root is now the scroll container — `#grid-wrap`, resolved
+via `gridEl.closest("#grid-wrap")` (falling back to `gridEl` so nothing breaks
+if the grid is mounted elsewhere). Only cards within about 600px of the
+viewport call `requestThumb`; cards leaving the margin call
+`scheduler.hide` and `resetCard` (1x1 canvas, skeleton back); the LRU holds
+about 150 bitmaps.
+
+Tests added in `tests/d7.test.mjs` (the first fails on the previous code):
+- the IntersectionObserver root is not `gridEl`;
+- the observer root is the scroll container passed into / resolved by `mountGrid`;
+- `.grid-wrap` sets `overflow-y: auto` or `scroll` in `css/editor.css`, so the
+  element used as the observer root is a scroll container.
+
+### 2. Drag insertion marker at row boundaries (js/ui/cards.js)
+
+When the drop target was after the last card of a row, the marker appeared at
+the start of the next row (one row below the target). It now appears at the
+right edge of that last card in the same row (~4px from it), and at the left
+edge of the first card when dropping before the first card of a row. The
+marker stays vertical, 4px wide, Electric Capture Blue, and as tall as a
+sheet. Drop behavior (`onMoveTo`) is unchanged.
+
+### Verification
+
+```
+node --test                                    -> 181/181 pass, exit 0
+node scripts/check-contrast.mjs                -> 12/12 PASS (>= 4.5:1)
+node scripts/check-headers.mjs --local         -> all header checks PASS
+node scripts/make-fixtures.mjs                 -> writes 8 fixtures cleanly
+```
+
+Exit code 0 for all three (plus fixtures).
+
+### NOT RUN (blocked by the sandbox / harness)
+
+No browser is available and `python3 -m http.server 8000` is denied, so live-page
+checks were not executed: thumbnail canvas counts at load and after scrolling
+bottom, middle and top on a 300-page PDF at 1440x860, the
+IntersectionObserver/margin behavior, the vertical drag insertion marker, and
+pointer-drag reorder. `node scripts/check-headers.mjs http://localhost:8000`
+(URL mode needs a live server).
+
+Unit tests do not prove UI behavior. The user verifies live at 1440x860 after
+deploy.
+
+Nothing was committed. Git was not touched.
+
+## Phase 2 polish
+
+Scope (copy pass + wiring + export metadata + rotation fix verification)
+
+- Part A — Extract wired end to end: rail Merge opens `pickFiles` with `accept="application/pdf,.pdf"` (PDFs appended to the merge via the existing `handleFiles` pipeline), rail Images opens `pickFiles` with `accept="image/jpeg,image/png,.jpg,.jpeg,.png"` (each image one page), rail Extract and the float bar's Extract call `extractSelected()`, which downloads the selected pages as a new PDF named "<doc name>-pages-<ranges>.pdf" (1-based compressed ranges, stem truncated to 40 chars then "-etc", commas→"_", sanitized like the normal export name). Annotate/Text/Sign/Protect stay disabled Soon; the Pages rail stays active; Enter/Space work natively.
+- Part B — `rotationScale` in `js/core/card-view.js` derives the fit scale from the effective rotation (base + user): effective 0/180 → scale 1; effective 90/270 → `min(boxW/dh,boxH/dw,1)` from `fitSize` of the rotation-0 dimensions, with no re-swap for `baseRotation`. Covered by `tests/card-view.test.mjs` effective-rotation cases.
+- Part C — copy pass: every sentence audited for truthfulness against the current build. `index.html` tools grid (Soon badges removed from Organize/Merge/Images/Extract; "Extract & split" renamed "Extract pages"; descriptions rewritten), tools subtitle, FAQ (offline = honest "No … no offline mode yet", file size = 500 MB with no page-count warning, new password-protected PDFs answer). `editor.html` privacy card already states "Pages are rendered by pdf.js and exported by pdf-lib, both served from this site." and has no outdated "coming" wording; hero/title/meta/proof/band audited and found truthful (no change). `privacy.html` FAQ updated to match `index.html`.
+- Part D — tests: `tests/extract-name.test.mjs` (9 pure unit tests for `compressRanges`/`extractFileName`); `tests/exporter-pdflib.test.mjs` `getCreator()` assertion against real pdf-lib; `tests/exporter.test.mjs` fake PDFLib `setCreator` + creator ops assertion; `tests/card-view.test.mjs` effective-rotation `rotationScale` cases; `tests/d8.test.mjs` static rail-accept/extract-wiring/forbidden-string checks; `tests/card-view.test.mjs` keeps the `.ds-sheet-page` `offsetWidth`/`offsetHeight` guard.
+
+Files changed
+- `index.html` — tools grid badges/descriptions/rename, tools subtitle, FAQ answers (offline, file size 500 MB, password-protected), Organize card description.
+- `privacy.html` — FAQ answers (offline, file size 500 MB, password-protected).
+- `js/core/extract-name.js` — new: `compressRanges`, `extractFileName`.
+- `js/core/exporter.js` — `setCreator("PrivyPDF")`; `sanitizeName` lifted to module-level export.
+- `js/editor.js` — `extractSelected()`; rail/float Extract wired; imports `extractFileName`.
+- `editor.html` — rail aria-labels ("Add PDFs to merge", "Add images as pages", "Extract selected pages"); privacy card second line verified present.
+- `tests/extract-name.test.mjs` — new (9 tests).
+- `tests/exporter.test.mjs` — fake `setCreator` + creator assertion.
+- `tests/exporter-pdflib.test.mjs` — `getCreator` assertion.
+- `tests/card-view.test.mjs` — `rotationScale` effective-rotation tests.
+- `tests/d8.test.mjs` — new static wiring/forbidden-string tests.
+
+Before → after (changed sentences)
+
+| Page | Before | After |
+| --- | --- | --- |
+| `index.html` | Tools subtitle: "All tools run on your device and nothing is uploaded. Tools land one at a time; each is marked Soon until it's ready." | "All tools run on your device and nothing is uploaded. Four tools are live now: Organize pages, Merge PDFs, Images to PDF and Extract pages. Two more tools, Annotate and Compress &amp; protect, are marked Soon." |
+| `index.html` | FAQ "Does it work offline?": "Not yet. The pages load while you're online; offline use is planned for a later release." | "No. The pages load while you're online; after that everything runs in your browser on your device. There's no offline mode yet." |
+| `index.html` | FAQ "Is there a file size limit?": "Only your device's memory. Large documents are limited by what your device can hold, not by any limit we set." | "Each file is limited to 500 MB. There's no page-count warning; big documents are limited by what your device's memory can hold." |
+| `index.html` | FAQ "Can I open password-protected PDFs?": (none) | "No. PrivyPDF can't open or export password-protected PDFs." |
+| `index.html` | Merge card: "Combine any number of PDFs into one file." (Soon badge) | "Add several PDFs, put the pages in order and download one file." (badge removed) |
+| `index.html` | Images card: "Turn JPG and PNG photos or scans into pages." (Soon badge) | "Add JPG or PNG photos or scans and each one becomes a page." (badge removed) |
+| `index.html` | Extract card: "Save any selection of pages as its own PDF." (Soon badge, titled "Extract & split") | "Select pages and download them as a separate PDF." (badge removed, titled "Extract pages") |
+| `index.html` | Organize card: "Select, rotate, duplicate and delete pages in the interactive demo." (Soon badge) | "Select, rotate, duplicate and delete pages, drag them into a new order and undo any step. Every edit stays in this tab. Nothing is uploaded." (badge removed) |
+| `privacy.html` | FAQ "Does it work offline?": "Not yet. The pages load while you're online; offline use is planned for a later release." | "No. The pages load while you're online; after that everything runs in your browser on your device. There's no offline mode yet." |
+| `privacy.html` | FAQ "Is there a file size limit?": "Only your device's memory. Large documents are limited by what your device can hold, not by any limit we set." | "Each file is limited to 500 MB. There's no page-count warning; big documents are limited by what your device's memory can hold." |
+| `privacy.html` | FAQ "Can I open password-protected PDFs?": (none) | "No. PrivyPDF can't open or export password-protected PDFs." |
+
+Verification
+
+```
+node --test                                    -> 199/199 pass, exit 0
+node scripts/check-contrast.mjs                -> 12/12 PASS (>= 4.5:1)
+node scripts/check-headers.mjs --local         -> all header checks PASS
+```
+
+Exit code 0 for all three. CSP unchanged (`style-src 'self'`, no `unsafe-inline`, no inline style attributes, no `<style>` blocks, no inline scripts).
+
+NOT RUN (blocked by the sandbox / harness)
+- No browser is available and `python3 -m http.server 8000` is denied, so live-page checks (Extract download flow and file name, Merge/Images rail file pickers, exported PDF Producer + Creator metadata, /Rotate 90° rendering, the before/after copy as rendered) were not executed.
+- `node scripts/check-headers.mjs http://localhost:8000` (URL mode needs a live server).
+
+Unit tests do not prove UI behavior. The user verifies live at 1440x860 after deploy.
+
+Nothing was committed. Git was not touched.

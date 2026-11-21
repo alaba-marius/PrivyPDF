@@ -1,5 +1,8 @@
+// Editor shell: store, file loading, page actions, export and the wiring
+// between the grid, the panels and the keyboard. All page mutations go
+// through the store; the grid and panels are pure views over it.
 import { hydrateIcons } from "./icons.js";
-import { takeFiles, pickFiles, validateFiles, baseName } from "./file-manager.js";
+import { takeFiles, pickFiles, validateFiles, downloadBytes, baseName } from "./file-manager.js";
 import { toast } from "./toast.js";
 import { createStore } from "./core/store.js";
 import { installErrorHandler, setToast } from "./core/errors.js";
@@ -12,7 +15,13 @@ import {
   rotateSelected as rotatePages,
   duplicateSelected as duplicatePages,
   deleteSelected as deletePages,
+  moveSelected,
 } from "./core/pages.js";
+import { createSourceLoader } from "./core/source-loader.js";
+import { createExporter } from "./core/exporter.js";
+import { extractFileName } from "./core/extract-name.js";
+import { fitSize } from "./core/card-view.js";
+import { createSource, getSource, removeSource, totalBytes } from "./core/sources.js";
 import { mountDropzone } from "./ui/dropzone.js";
 import { mountGrid, buildSkeletons } from "./ui/cards.js";
 import { mountPanel } from "./ui/panel.js";
@@ -23,38 +32,89 @@ installErrorHandler();
 setToast(toast);
 
 const $ = (id) => document.getElementById(id);
-const DEMO = location.hash === "#demo";
 
 // Local UI focus state (not history-worthy, so it lives outside the store).
 let focusedId = null;
+let anchorId = null;
+let nextId = 1;
+
+// Lazy pdf.js: imported as a module the first time a real PDF is opened; the
+// worker is the same-origin vendored worker bundle, allowed by the CSP.
+let pdfjsLib;
+let pdfjsReady;
+async function loadPdfJs() {
+  if (!pdfjsReady) {
+    pdfjsReady = import("/vendor/pdfjs/pdf.min.js").then((mod) => {
+      pdfjsLib = mod;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.js";
+    });
+  }
+  await pdfjsReady;
+}
+
+const sourceLoader = createSourceLoader({
+  loadPdf: async (bytes) => {
+    await loadPdfJs();
+    const task = pdfjsLib.getDocument({
+      data: bytes.slice(), // pass a copy; the caller keeps its own bytes
+      workerSrc: "/vendor/pdfjs/pdf.worker.min.js",
+      cMapUrl: "/vendor/pdfjs/cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: "/vendor/pdfjs/standard_fonts/",
+      wasmUrl: "/vendor/pdfjs/wasm/",
+      isEvalSupported: false,
+      enableXfa: false,
+    });
+    return task.promise;
+  },
+  decodeImage: async (bytes, type) =>
+    createImageBitmap(new Blob([bytes], { type })),
+});
+
+// pdf-lib is injected in tests; in the browser it is dynamically imported
+// from the vendored bundle the first time someone exports.
+const exporter = createExporter();
 
 const store = createStore(
   {
-    mode: DEMO ? "demo" : "empty",
-    fileName: DEMO ? "Annual-report.pdf" : "No document",
-    pages: DEMO
-      ? Array.from({ length: 7 }, (_, id) => ({ id: `p${id + 1}`, rotated: 0 }))
-      : [],
-    selected: DEMO ? ["p3", "p4"] : [],
-    sourceFiles: DEMO
-      ? [{ name: "Annual-report.pdf", size: 2_516_582, type: "application/pdf" }]
-      : [],
-    totalSize: DEMO ? 2_516_582 : 0,
+    mode: "empty",
+    fileName: "No document",
+    pages: [],
+    selected: [],
+    sourceFiles: [],
+    totalSize: 0,
     size: "large",
     exportMode: "all",
   },
   { track: ["pages"] },
 );
 
-let nextId = store.get().pages.length + 1;
-focusedId = store.get().pages[0]?.id ?? null;
-let anchorId = null;
-
-// The "Demo with sample pages" badge only makes sense in demo mode.
-$("demo-badge")?.toggleAttribute("hidden", !DEMO);
+function recomputeNextPageCounter() {
+  let max = 0;
+  for (const page of store.get().pages) {
+    const n = Number(String(page.id).slice(1));
+    if (!Number.isNaN(n) && n > max) max = n;
+  }
+  nextId = max + 1;
+}
 
 function getState() {
   return { ...store.get(), focusedId };
+}
+
+function announceStatus(message) {
+  const el = $("sub-status");
+  const previous = el.textContent;
+  el.textContent = message;
+  setTimeout(() => {
+    if (el.textContent === message) el.textContent = previous;
+  }, 1500);
+}
+
+function announceMove() {
+  const state = getState();
+  const position = state.pages.findIndex((page) => page.id === focusedId) + 1;
+  announceStatus(`Page moved to position ${position} of ${state.pages.length}`);
 }
 
 function renderAll() {
@@ -73,8 +133,7 @@ function renderAll() {
 
   $("empty-state").hidden = state.mode !== "empty";
   $("loading-state").hidden = state.mode !== "loading";
-  $("page-grid").hidden = state.mode !== "demo" && state.mode !== "loaded";
-  $("info-card").hidden = state.mode !== "loaded";
+  $("page-grid").hidden = state.mode !== "loaded";
 
   gridCtl.render();
 
@@ -84,15 +143,13 @@ function renderAll() {
 
   // Below 480px the sub-toolbar holds Select all, Undo and Redo side by side,
   // so drop the "N pages" part and keep only "N selected".
-  const demoStatus = mq480.matches ? `${count} selected` : `${state.pages.length} pages · ${count} selected`;
+  const pageStatus = mq480.matches ? `${count} selected` : `${state.pages.length} pages · ${count} selected`;
   $("sub-status").textContent =
     state.mode === "loading"
       ? "Loading…"
-      : state.mode === "demo"
-        ? demoStatus
-        : state.mode === "loaded"
-          ? `${state.sourceFiles.length} file(s) loaded`
-          : "No document";
+      : state.mode === "loaded"
+        ? `${state.pages.length} pages · ${count} selected`
+        : pageStatus;
 
   subToolbar.setSize(state.size);
   panel.render(state);
@@ -124,22 +181,81 @@ async function handleFiles(fileList) {
   rejected.forEach(({ file, reason }) => {
     toast(`${baseName(file.name)}: ${reason}`, { type: "error" });
   });
-  if (valid.length) {
-    store.patch({
-      mode: "loaded",
-      fileName: valid.length === 1 ? valid[0].name : `${valid.length} files`,
-      sourceFiles: valid.map((f) => ({ name: f.name, size: f.size, type: f.type })),
-      totalSize: valid.reduce((a, b) => a + b.size, 0),
-      selected: [],
-    });
-    focusedId = null;
-    anchorId = null;
-  } else {
-    store.patch({ mode: "empty", selected: [] });
-    focusedId = null;
-    anchorId = null;
+  recomputeNextPageCounter();
+
+  const addedPages = [];
+  const addedSourceFiles = [];
+  for (const file of valid) {
+    try {
+      const loaded = await sourceLoader.loadFile(file);
+      const source = createSource({
+        kind: loaded.kind,
+        bytes: loaded.bytes,
+        size: loaded.size,
+        type: file.type,
+        pageCount: loaded.pageCount,
+        pdfjsDoc: loaded.pdfjsDoc,
+        imageBitmap: loaded.imageBitmap,
+        width: loaded.width,
+        height: loaded.height,
+      });
+      for (const page of loaded.pages) {
+        addedPages.push({
+          id: `p${nextId++}`,
+          sourceId: source.id,
+          index: page.index,
+          baseRotation: page.baseRotation,
+          rotated: 0,
+          width: page.width,
+          height: page.height,
+        });
+      }
+      addedSourceFiles.push({
+        id: source.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        pages: loaded.pageCount,
+      });
+    } catch (error) {
+      const message = String(error.message || error);
+      const name = baseName(file.name);
+      if (/password|encrypt/i.test(message)) {
+        toast(`${name} is password protected — password-encrypted PDFs are not supported yet.`, {
+          type: "error",
+        });
+      } else {
+        // Log the underlying reason (never file contents) and show a generic
+        // message so a corrupt or unsupported file doesn't leak internals.
+        console.warn(`${name}: ${message}`);
+        toast(`${name} could not be opened.`, { type: "error" });
+      }
+    }
   }
+
+  const state = getState();
+  const pages = [...state.pages, ...addedPages];
+  // Adding another file never replaces an already shown file name.
+  let fileName = state.fileName;
+  if (fileName === "No document" && addedSourceFiles.length) {
+    fileName =
+      addedSourceFiles.length === 1
+        ? addedSourceFiles[0].name
+        : `${addedSourceFiles.length} files`;
+  }
+  store.patch({
+    mode: pages.length ? "loaded" : "empty",
+    fileName,
+    sourceFiles: [...state.sourceFiles, ...addedSourceFiles],
+    totalSize: totalBytes(),
+    pages,
+    selected: [],
+  });
+  focusedId = pages[0]?.id ?? null;
+  anchorId = null;
 }
+
+// ---------- Selection ----------
 
 function togglePage(id) {
   // Non-shift click and Space/Enter: focus and anchor land on this card.
@@ -157,13 +273,17 @@ function selectAllPages() {
   }
 }
 
+function selectNone() {
+  store.patch({ selected: [] });
+}
+
 function selectRangeTo(to) {
   const state = getState();
   focusedId = state.pages[to]?.id ?? null;
   store.patch({ selected: selectRange(state.pages, anchorId, to) });
 }
 
-// ---------- Demo actions (page structure: tracked by history) ----------
+// ---------- Page actions (each checkpoint is one undo step) ----------
 
 function rotateSelected() {
   const state = getState();
@@ -174,11 +294,7 @@ function rotateSelected() {
 
 function duplicateSelected() {
   const state = getState();
-  const { pages, dupes, nextId: newNextId } = duplicatePages(
-    state.pages,
-    state.selected,
-    nextId,
-  );
+  const { pages, dupes, nextId: newNextId } = duplicatePages(state.pages, state.selected, nextId);
   nextId = newNextId;
   focusedId = dupes[0]?.id ?? null;
   store.checkpoint((s) => {
@@ -206,25 +322,130 @@ function deleteSelected() {
   ) {
     // focused page survived
   } else {
-    focusedId =
-      (after.pages[focusedIdx] ?? after.pages[focusedIdx - 1] ?? after.pages[0])
-        .id;
+    focusedId = (after.pages[focusedIdx] ?? after.pages[focusedIdx - 1] ?? after.pages[0]).id;
   }
   renderAll();
+}
+
+function removeSourceFile(sourceId) {
+  const state = getState();
+  store.checkpoint((s) => {
+    s.pages = s.pages.filter((page) => page.sourceId !== sourceId);
+    s.sourceFiles = s.sourceFiles.filter((file) => file.id !== sourceId);
+    s.totalSize = totalBytes();
+    if (s.pages.length === 0) {
+      s.mode = "empty";
+      s.fileName = "No document";
+      s.selected = [];
+    }
+  });
+  removeSource(sourceId);
+  if (getState().pages.length === 0) {
+    focusedId = null;
+  } else if (!getState().pages.some((page) => page.id === state.focusedId)) {
+    focusedId = getState().pages[0].id;
+  }
+}
+
+function moveBlock(toIndex) {
+  const state = getState();
+  const sel = new Set(state.selected);
+  const moved =
+    state.selected.length
+      ? state.pages.filter((page) => sel.has(page.id))
+      : state.focusedId != null
+        ? state.pages.filter((page) => page.id === state.focusedId)
+        : [];
+  if (!moved.length) return;
+  store.checkpoint((s) => {
+    s.pages = moveSelected(s.pages, moved.map((page) => page.id), state.focusedId, toIndex);
+  });
+  focusedId = moved[0].id;
+  announceMove();
+}
+
+// Pointer-drag or Alt+Arrow reordering of the selected block (or the focused
+// page when nothing is selected).
+function movePagesBy(dir) {
+  const state = getState();
+  const sel = new Set(state.selected);
+  const moved =
+    state.selected.length
+      ? state.pages.filter((page) => sel.has(page.id))
+      : state.focusedId != null
+        ? state.pages.filter((page) => page.id === state.focusedId)
+        : [];
+  if (!moved.length) return;
+  const blockStart = state.pages.findIndex((page) => page.id === moved[0].id);
+  moveBlock(dir > 0 ? blockStart + 1 : blockStart - 1);
+}
+
+// ---------- Export ----------
+
+async function exportDocument(mode) {
+  const state = getState();
+  if (!state.pages.length) return;
+  if (mode === "selected" && !state.selected.length) {
+    toast("Select pages first.", { type: "error" });
+    return;
+  }
+  try {
+    const { name, bytes } = await exporter.exportPages({
+      pages: state.pages,
+      getSource,
+      fileName: state.fileName,
+      exportMode: mode,
+      selected: new Set(state.selected),
+    });
+    await downloadBytes(name, bytes);
+  } catch (error) {
+    toast(`Export failed: ${error.message}`, { type: "error" });
+  }
+}
+
+// Download the selected pages as their own PDF, in the current order, without
+// touching the document, the selection or the undo history. The file name is
+// "<doc name>-pages-<ranges>.pdf" with the positions compressed ("3-5,9").
+async function extractSelected() {
+  const state = getState();
+  if (!state.selected.length) {
+    toast("Select the pages to extract first.", { type: "error" });
+    return;
+  }
+  const positions = state.pages
+    .map((page, index) => index + 1)
+    .filter((_, index) => state.selected.has(state.pages[index].id));
+  try {
+    const { name, bytes } = await exporter.exportPages({
+      pages: state.pages,
+      getSource,
+      fileName: extractFileName(state.fileName, positions),
+      exportMode: "selected",
+      selected: new Set(state.selected),
+    });
+    await downloadBytes(name, bytes);
+  } catch (error) {
+    toast(`Export failed: ${error.message}`, { type: "error" });
+  }
 }
 
 // ---------- Wiring ----------
 
 const gridCtl = mountGrid($("page-grid"), $("add-tile"), $("workarea"), {
   getState,
+  getSourceName: (id) => {
+    const file = getState().sourceFiles.find((f) => f.id === id);
+    return file ? file.name : "";
+  },
   onToggle: togglePage,
   onFocus: (id) => {
     // Only update focusedId; the grid updates roving tabindex in place and
-    // never rebuilds DOM here, so a mid-click card is never destroyed.
+    // never rebuilds DOM here, so a card clicked between mousedown and mouseup
+    // keeps its click.
     focusedId = id;
   },
   onSelectAll: selectAllPages,
-  onSelectNone: () => store.patch({ selected: [] }),
+  onSelectNone: selectNone,
   onSelectRange: selectRangeTo,
   onFocusNext: (index) => {
     focusedId = getState().pages[index].id;
@@ -234,6 +455,55 @@ const gridCtl = mountGrid($("page-grid"), $("add-tile"), $("workarea"), {
   onSizeChange: (size) => store.patch({ size }),
   onAdd: () => {
     pickFiles().then(handleFiles);
+  },
+  onMoveTo: (toIndex) => moveBlock(toIndex),
+  renderThumbnail: async (key, signal) => {
+    const [sourceId, indexSpec, sizeSpec] = key.split(":");
+    const [dw, dh] = sizeSpec.split("x").map(Number);
+    const source = getSource(sourceId);
+    if (!source) throw new Error("source gone");
+
+    const dpr = Math.min(Math.max(1, window.devicePixelRatio || 1), 2);
+    let naturalW, naturalH;
+    if (source.kind === "pdf") {
+      const pdfPage = await source.pdfjsDoc.getPage(Number(indexSpec) + 1);
+      if (signal.aborted) {
+        pdfPage.cleanup();
+        throw new Error("aborted");
+      }
+      const baseViewport = pdfPage.getViewport({ scale: 1, rotation: 0 });
+      naturalW = baseViewport.width;
+      naturalH = baseViewport.height;
+    } else {
+      naturalW = source.width;
+      naturalH = source.height;
+    }
+
+    // Fit the page into the sheet content box without stretching; the bitmap
+    // is rendered at exactly that size times devicePixelRatio (capped at 2).
+    const { width: renderW, height: renderH } = fitSize(naturalW, naturalH, dw, dh);
+    const scale = renderW / naturalW;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(renderW * dpr));
+    canvas.height = Math.max(1, Math.round(renderH * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    if (source.kind === "pdf") {
+      const pdfPage = await source.pdfjsDoc.getPage(Number(indexSpec) + 1);
+      if (signal.aborted) {
+        pdfPage.cleanup();
+        throw new Error("aborted");
+      }
+      const viewport = pdfPage.getViewport({ scale, rotation: 0 });
+      await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+      pdfPage.cleanup();
+    } else {
+      ctx.drawImage(source.imageBitmap, 0, 0, naturalW, naturalH, 0, 0, renderW, renderH);
+    }
+
+    const bitmap = await createImageBitmap(canvas);
+    return { bitmap };
   },
 });
 
@@ -255,7 +525,7 @@ $("btn-redo").addEventListener("click", () => {
   store.redo();
 });
 $("btn-download").addEventListener("click", () => {
-  toast("Download is coming in the next phase.", { type: "success" });
+  exportDocument("all");
 });
 
 // Pin the rail scroll to 0 on load so the overflowing tab row never clips
@@ -281,24 +551,22 @@ function placeUndoRedo() {
 mq480.addEventListener("change", placeUndoRedo);
 placeUndoRedo();
 
-// Rail (only Pages is implemented this phase).
+// Rail. Merge appends the chosen PDFs' pages after the current pages; Images
+// appends each chosen image as a page. Both go through the normal loading
+// pipeline (validation, toasts). The Pages rail item stays active.
 $("rail-merge").addEventListener("click", () => {
-  toast("Coming in the next phase.", { type: "success" });
+  pickFiles({ accept: "application/pdf,.pdf" }).then(handleFiles);
 });
 $("rail-images").addEventListener("click", () => {
-  toast("Coming in the next phase.", { type: "success" });
+  pickFiles({ accept: "image/jpeg,image/png,.jpg,.jpeg,.png" }).then(handleFiles);
 });
-$("rail-extract").addEventListener("click", () => {
-  toast("Coming in the next phase.", { type: "success" });
-});
+$("rail-extract").addEventListener("click", extractSelected);
 
 // Float bar.
 const floatBar = mountFloatBar($("float-bar"), {
   onRotate: rotateSelected,
   onDuplicate: duplicateSelected,
-  onExtract: () => {
-    toast("Coming in the next phase.", { type: "success" });
-  },
+  onExtract: extractSelected,
   onDelete: deleteSelected,
 });
 
@@ -312,9 +580,8 @@ const panel = mountPanel($("right-panel"), {
     }
     store.patch({ exportMode: mode });
   },
-  onDownloadPDF: () => {
-    toast("PDF export is coming in the next phase.", { type: "success" });
-  },
+  onDownloadPDF: () => exportDocument(getState().exportMode),
+  onSourceRemove: (sourceId) => removeSourceFile(sourceId),
 });
 
 // Drawer panel (narrow viewports).
@@ -344,6 +611,7 @@ window.addEventListener("drop", (event) => {
 // Shortcuts (ignored while typing in inputs).
 registerShortcuts({
   onRotate: rotateSelected,
+  onDuplicate: duplicateSelected,
   onDelete: deleteSelected,
   onUndo: () => {
     store.undo();
@@ -352,8 +620,32 @@ registerShortcuts({
     store.redo();
   },
   onDownload: () => {
-    toast("Download is coming in the next phase.", { type: "success" });
+    exportDocument(getState().exportMode);
   },
+});
+
+// Alt+Left / Alt+Right move the selected block (or the focused page) one
+// position left or right. Announced through the aria-live status region.
+function isTypingTarget(target) {
+  return (
+    target &&
+    (target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT")
+  );
+}
+
+window.addEventListener("keydown", (event) => {
+  if (isTypingTarget(event.target)) return;
+  if (!event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    movePagesBy(-1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    movePagesBy(1);
+  }
 });
 
 // Privacy meter: live counter of requests to other origins.

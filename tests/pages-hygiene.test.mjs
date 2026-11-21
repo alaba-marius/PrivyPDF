@@ -14,9 +14,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // design-system.html are the pages we still ship unchanged.
 const PAGES = ["index.html", "privacy.html", "design-system.html", "editor.html"];
 
-// editor.html is owned by D3 and deliberately not rewritten in this phase.
-// Its demo mode is activated by the hash alone (/editor.html#demo), so anchors
-// that point at it never need a matching id on that page.
+// editor.html is owned by D3. Demo mode was removed in Phase 2: the editor is
+// the same page with or without a hash, so anchors that point at it resolve to
+// the page itself and need no anchor id.
 function isEditorTarget(targetPage) {
   return targetPage === "/editor.html";
 }

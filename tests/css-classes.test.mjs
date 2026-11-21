@@ -76,7 +76,7 @@ test("editor.html shell keeps every original id", (t) => {
     "file-name",
     "rail","rail-merge","rail-images","rail-extract",
     "workarea","sub-toolbar","sub-status","select-all","size-wrap","size-large","size-small",
-    "grid-wrap","empty-state","empty-drop","page-grid","add-tile","loading-state","skeleton-grid","info-card","drag-overlay",
+    "grid-wrap","empty-state","empty-drop","page-grid","add-tile","loading-state","skeleton-grid","drag-overlay",
     "float-bar","float-label","float-rotate","float-duplicate","float-extract","float-delete",
     "right-panel","doc-name","stat-pages","stat-source","stat-size","source-files","export-all","export-selected","download-pdf","privacy-count",
     "drawer-scrim",
@@ -93,7 +93,6 @@ test("editor shell landmarks use ds- classes", (t) => {
   assert.ok(hasClass("size-wrap", "ds-segmented"), "#size-wrap uses ds-segmented");
   assert.ok(hasClass("empty-drop", "ds-dropzone"), "#empty-drop uses ds-dropzone");
   assert.ok(hasClass("doc-name", "ds-input"), "#doc-name uses ds-input");
-  assert.ok(hasClass("info-card", "ds-card"), "#info-card uses ds-card");
   // The privacy card is a ds-card (never green), nested inside a panel
   // section so it sits inside the section padding like other content.
   assert.ok(
